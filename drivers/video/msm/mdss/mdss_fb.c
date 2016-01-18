@@ -182,7 +182,7 @@ static void mdss_ensure_kworker_done(struct workqueue_struct *wq)
 	}
 }
 
-static struct input_handler mds_input_handler = {
+static struct input_handler mdss_input_handler = {
 	.event		= mdss_input_event,
 	.connect	= mdss_input_connect,
 	.disconnect	= mdss_input_disconnect,
@@ -3208,8 +3208,7 @@ int __init mdss_fb_init(void)
 
 	if (platform_driver_register(&mdss_fb_driver))
 		return rc;
-    
-	if (input_register_handler(&mds_input_handler))
+	if (input_register_handler(&mdss_input_handler))
 		return rc;
 	return 0;
 }
