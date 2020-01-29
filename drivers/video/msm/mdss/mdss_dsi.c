@@ -1472,8 +1472,8 @@ int mdss_dsi_panel_power_detect(struct platform_device *pdev, int enable)
 		usleep_range(9000, 10000);
 		devm_regulator_put(vddio_vreg);
 	}
-	return 0;
 #endif
+    return 0;
 }
 struct device dsi_dev;
 
