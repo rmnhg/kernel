@@ -25,7 +25,8 @@
 /* wait for at most 2 vsync for lowest refresh rate (24hz) */
 #define KOFF_TIMEOUT msecs_to_jiffies(84)
 
-#define STOP_TIMEOUT(hz) msecs_to_jiffies((1000 / hz) * (VSYNC_EXPIRE_TICK + 2))
+#define STOP_TIMEOUT(hz) \
+	msecs_to_jiffies(2 * (1000 / hz) * (VSYNC_EXPIRE_TICK + 2))
 #define ULPS_ENTER_TIME msecs_to_jiffies(100)
 
 struct mdss_mdp_cmd_ctx {
@@ -649,8 +650,6 @@ int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 		rc = mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_UNBLANK, NULL);
 		WARN(rc, "intf %d unblank error (%d)\n", ctl->intf_num, rc);
 
-		ctx->panel_on++;
-
 		rc = mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_PANEL_ON, NULL);
 		WARN(rc, "intf %d panel on error (%d)\n", ctl->intf_num, rc);
 
@@ -687,6 +686,21 @@ int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 	MDSS_XLOG(ctl->num,  ctx->koff_cnt, ctx->clk_enabled,
 						ctx->rdptr_enabled);
 
+	if (ctx->panel_on == 0) {
+		if (ctl->mfd) {
+			struct mdss_panel_data *pdata;
+			pdata = dev_get_platdata(&ctl->mfd->pdev->dev);
+			if (!pdata) {
+				pr_err("no panel connected\n");
+				return -ENODEV;
+			}
+
+			if (pdata->intf_ready)
+				pdata->intf_ready(pdata);
+		}
+		ctx->panel_on++;
+	}    
+    
 	return 0;
 }
 
