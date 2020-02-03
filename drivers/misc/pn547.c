@@ -47,8 +47,6 @@
 #include <linux/clk.h>
 #endif
 
-#include <mach/board-nfc.h>
-
 #define MAX_BUFFER_SIZE		512
 
 #define NFC_DEBUG 0
@@ -434,7 +432,7 @@ static int pn547_probe(struct i2c_client *client,
 		err = pn547_parse_dt(&client->dev, platform_data);
 		if (err)
 			return err;
-		err = board_nfc_parse_dt(&client->dev, platform_data);
+		err = 0; board_nfc_parse_dt(&client->dev, platform_data);
 		if (err < 0)
 			return err;
 	} else {
@@ -447,7 +445,7 @@ static int pn547_probe(struct i2c_client *client,
 	}
 
 	if (platform_data->dynamic_config) {
-		ret = board_nfc_hw_lag_check(client, platform_data);
+		ret = 0; board_nfc_hw_lag_check(client, platform_data);
 		if (ret < 0)
 			return ret;
 	}
@@ -474,7 +472,8 @@ static int pn547_probe(struct i2c_client *client,
 	if (gpio_is_valid(platform_data->pvdd_en_gpio)) {
 		ret = gpio_request(platform_data->pvdd_en_gpio, "nfc_pvdd_en");
 		if (ret)
-			pr_warn("%s: Failed to request nfc_pvdd_en GPIO\n");
+			pr_warn("%s: Failed to request nfc_pvdd_en GPIO\n",
+								 __func__);
 	}
 
 	pn547_dev = kzalloc(sizeof(*pn547_dev), GFP_KERNEL);
@@ -525,7 +524,7 @@ static int pn547_probe(struct i2c_client *client,
 	mutex_init(&pn547_dev->read_mutex);
 
 	pn547_dev->pn547_device.minor = MISC_DYNAMIC_MINOR;
-	pn547_dev->pn547_device.name = "pn547";
+	pn547_dev->pn547_device.name = "pn54x";
 	pn547_dev->pn547_device.fops = &pn547_dev_fops;
 
 	ret = misc_register(&pn547_dev->pn547_device);
@@ -622,7 +621,6 @@ err_get_clock:
 #endif
 	kfree(pn547_dev);
 err_exit:
-err_pvdd_en:
 	gpio_free(platform_data->pvdd_en_gpio);
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	gpio_free(platform_data->clk_req_gpio);
