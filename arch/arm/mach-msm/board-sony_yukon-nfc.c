@@ -1,4 +1,4 @@
-/* arch/arm/mach-msm/board-sony_shinano-nfc.c
+/* arch/arm/mach-msm/board-sony_yukon-nfc.c
  *
  * Copyright (C) 2013 Sony Mobile Communications AB.
  *
@@ -8,7 +8,9 @@
  * of the License, or (at your option) any later version.
  */
 
-#include <mach/board-nfc.h>
+#include <linux/device.h>
+#include <linux/i2c.h>
+#include <linux/pn547.h>
 
 int board_nfc_parse_dt(struct device *dev,
 			struct pn547_i2c_platform_data *pdata)
