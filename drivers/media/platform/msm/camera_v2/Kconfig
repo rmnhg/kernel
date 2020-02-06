@@ -216,12 +216,6 @@ config S5K5E2
 		supports 960P preview at 30 fps
 		and 2560x1920 snapshot at 15 fps.
 
-config OV7695
-	bool "Sensor OV7695 (YUV VGA)"
-	depends on MSMB_CAMERA
-	---help---
-		OmniVision VGA Bayer Sensor
-
 config OV12830
 	bool "OmniVision OV12830 (BAYER 12MP)"
 	depends on MSMB_CAMERA
