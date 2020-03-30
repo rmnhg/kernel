@@ -63,7 +63,10 @@
 #else
 #define MDSS_FB_NUM 2
 #endif
-
+#ifdef CONFIG_MACH_SONY_SEAGULL 
+static int SplashScreenState = 2;
+static int backlight_early_init=0;
+#endif
 #define MAX_FBI_LIST 32
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
@@ -1935,11 +1938,13 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 			printk(KERN_ERR "[DISPLAY]%s: create dev_attr_display_battery failed, ret <%d>\n",
 					__func__, ret);
 		}
+#ifndef CONFIG_MACH_SONY_SEAGULL
 		ret = device_create_file(fbi->dev, &dev_attr_manufactory_id);
 		if (ret) {
 		       printk(KERN_ERR "[DISPLAY]%s: create dev_attr_manufactory_id failed, ret <%d>\n",
 		                       __func__, ret);
 		}
+#endif
 		ret = device_create_file(fbi->dev, &dev_attr_frst);
 		if (ret) {
 		       printk(KERN_ERR "[DISPLAY]%s: create dev_attr_frst failed, ret <%d>\n",
@@ -2009,12 +2014,6 @@ static int mdss_fb_open_sub(struct fb_info *info, int user)
 
 	pinfo->ref_cnt++;
 	mfd->ref_cnt++;
-
-	/* Stop the splash thread once userspace open the fb node */
-	if (mfd->splash_thread && mfd->ref_cnt > 1) {
-		kthread_stop(mfd->splash_thread);
-		mfd->splash_thread = NULL;
-	}
 
 	return 0;
 

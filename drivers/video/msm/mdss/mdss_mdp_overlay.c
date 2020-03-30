@@ -1105,6 +1105,11 @@ end:
 	return rc;
 }
 
+int mdss_mdp_overlay_start_splash(struct msm_fb_data_type *mfd)
+{
+	return mdss_mdp_overlay_start(mfd);
+}
+
 static void mdss_mdp_overlay_update_pm(struct mdss_overlay_private *mdp5_data)
 {
 	ktime_t wakeup_time;

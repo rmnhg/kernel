@@ -300,6 +300,13 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if(!backlightstart && display_on_in_boot)
+	{
+		backlightstart++;
+		return;
+	}
+#endif    
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
 #ifndef CONFIG_MACH_SONY_FLAMINGO 
@@ -331,10 +338,33 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			goto mode_gpio_err;
 		}
 	}
+#else 
+	rc = gpio_request(ctrl_pdata->disp_p5_gpio, "disp_p5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto p5_gpio_err;
+	}
+
+	rc = gpio_request(ctrl_pdata->disp_n5_gpio, "disp_n5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto n5_gpio_err;
+	}
+	DisplayGpioInit = 1;
+	printk("[DISPLAY]%s: - \n", __func__);
 #endif
 	return rc;
 
+#ifdef CONFIG_MACH_SONY_SEAGULL
+n5_gpio_err:
+	gpio_free(ctrl_pdata->disp_n5_gpio);
+p5_gpio_err:
+	gpio_free(ctrl_pdata->disp_p5_gpio);
+#else
 mode_gpio_err:
+#endif
 	gpio_free(ctrl_pdata->rst_gpio);
 rst_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
@@ -353,7 +383,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	int i, rc = 0;
 #endif
 
-#ifdef CONFIG_MACH_SONY_SEGULL
+#ifdef CONFIG_MACH_SONY_SEAGULL
 	printk("[DISPLAY]%s: + en %d\n", __func__, enable);
 #endif
 	if (pdata == NULL) {
@@ -1376,8 +1406,6 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		LTE:514M
 		3G:800M
 	*/
-	if((fih_get_band_id() == BAND_125)||(fih_get_band_id() ==BAND_1258))
-	{
 		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch", &tmp);
 		pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
 		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-back-porch", &tmp);
@@ -1390,7 +1418,6 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		pinfo->lcdc.v_front_porch = (!rc ? tmp : 6);
 		rc = of_property_read_u32(np, "qcom,mdss-dsi-v-pulse-width", &tmp);
 		pinfo->lcdc.v_pulse_width = (!rc ? tmp : 2);	
-	}
 #else
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch", &tmp);
 	pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
@@ -1562,16 +1589,8 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-clockrate", &tmp);
 	pinfo->clk_rate = (!rc ? tmp : 0);
 #ifdef CONFIG_MACH_SONY_SEAGULL
-	if((fih_get_band_id() == BAND_125)||(fih_get_band_id() ==BAND_1258))
-	{
 		data = of_get_property(np, "qcom,mdss-dsi-panel-timings", &len);
 //		pr_info("[DISPLAY]%s:3G Timing -\n", __func__);
-	}
-	else
-	{
-		data = of_get_property(np, "qcom,mdss-dsi-panel-timings-lte", &len);
-//		pr_info("[DISPLAY]%s: LTE Timing\n", __func__);
-	}
 #else
 	data = of_get_property(np, "qcom,mdss-dsi-panel-timings", &len);
 #endif

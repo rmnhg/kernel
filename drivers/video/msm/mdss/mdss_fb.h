@@ -262,7 +262,7 @@ struct msm_fb_data_type {
 	wait_queue_head_t idle_wait_q;
 	wait_queue_head_t kickoff_wait_q;
 	bool shutdown_pending;
-
+    
 	struct msm_fb_splash_info splash_info;
 
 	wait_queue_head_t ioctl_q;

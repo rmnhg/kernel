@@ -438,4 +438,8 @@ static inline struct mdss_dsi_ctrl_pdata *mdss_dsi_get_ctrl_by_index(int ndx)
 
 	return ctrl_list[ndx];
 }
+
+#ifdef CONFIG_MACH_SONY_SEAGULL
+bool mdss_display_splash_LK(void);
+#endif
 #endif /* MDSS_DSI_H */
