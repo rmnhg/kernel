@@ -54,6 +54,9 @@
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
+#include "mdss_mdp.h"
+#include "mdss_dsi.h"
+#include <linux/gpio.h> 
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -224,12 +227,46 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 }
 
 static int lcd_backlight_registered;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+#define MAX_BACKLIGHT_BRIGHTNESS 255
+#endif
 
 static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 				      enum led_brightness value)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
 	int bl_lvl;
+    
+#ifdef CONFIG_MACH_SONY_SEAGULL
+       char bkl_lut[MAX_BACKLIGHT_BRIGHTNESS + 1] = {
+               0x00, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+               0x07, 0x08, 0x0A, 0x0C, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13,
+               0x13, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14,
+               0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14,
+               0x14, 0x14, 0x14, 0x14, 0x14, 0x15, 0x15, 0x15, 0x15, 0x15,
+               0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x15, 0x16, 0x16, 0x16,
+               0x16, 0x16, 0x16, 0x16, 0x17, 0x17, 0x17, 0x17, 0x17, 0x17,
+               0x18, 0x18, 0x18, 0x18, 0x18, 0x19, 0x19, 0x19, 0x19, 0x1A,
+               0x1A, 0x1A, 0x1A, 0x1B, 0x1B, 0x1B, 0x1C, 0x1C, 0x1C, 0x1D,
+               0x1D, 0x1D, 0x1E, 0x1E, 0x1E, 0x1F, 0x1F, 0x20, 0x20, 0x20,
+               0x21, 0x21, 0x22, 0x22, 0x23, 0x23, 0x24, 0x24, 0x25, 0x25,
+               0x26, 0x26, 0x27, 0x27, 0x28, 0x28, 0x29, 0x2A, 0x2A, 0x2B,
+               0x2B, 0x2C, 0x2D, 0x2D, 0x2E, 0x2F, 0x2F, 0x30, 0x31, 0x32,
+               0x32, 0x33, 0x34, 0x35, 0x35, 0x36, 0x37, 0x38, 0x39, 0x39,
+               0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43,
+               0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D,
+               0x4E, 0x4F, 0x50, 0x51, 0x53, 0x54, 0x55, 0x56, 0x57, 0x59,
+               0x5A, 0x5B, 0x5C, 0x5E, 0x5F, 0x60, 0x62, 0x63, 0x64, 0x66,
+               0x67, 0x69, 0x6A, 0x6C, 0x6D, 0x6E, 0x70, 0x71, 0x73, 0x74,
+               0x76, 0x78, 0x79, 0x7B, 0x7C, 0x7E, 0x80, 0x81, 0x83, 0x85,
+               0x86, 0x88, 0x8A, 0x8C, 0x8D, 0x8F, 0x91, 0x93, 0x95, 0x97,
+               0x98, 0x9A, 0x9C, 0x9E, 0xA0, 0xA2, 0xA4, 0xA6, 0xA8, 0xAA,
+               0xAC, 0xAE, 0xB0, 0xB2, 0xB4, 0xB7, 0xB9, 0xBB, 0xBD, 0xBF,
+               0xC1, 0xC4, 0xC6, 0xC8, 0xCB, 0xCD, 0xCF, 0xD2, 0xD4, 0xD6,
+               0xD9, 0xDB, 0xDE, 0xE0, 0xE2, 0xE5, 0xE7, 0xEA, 0xED, 0xEF,
+               0xF2, 0xF4, 0xF7, 0xFA, 0xFC, 0xFF,
+       };
+#endif    
 
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
@@ -238,6 +275,10 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	   driver backlight level 0 to bl_max with rounding */
 	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
 				mfd->panel_info->brightness_max);
+
+#ifdef CONFIG_MACH_SONY_SEAGULL
+       bl_lvl = bkl_lut[value];
+#endif
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
@@ -348,6 +389,23 @@ static ssize_t mdss_mdp_show_blank_event(struct device *dev,
 
 	return ret;
 }
+
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+#define LCM_ID_PIN	27
+extern char temp_buf[];		
+static ssize_t mdss_fb_lcm_module_id(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	if (*temp_buf != '\0')
+		ret = snprintf(buf, PAGE_SIZE, temp_buf);
+	else
+		ret = snprintf(buf, PAGE_SIZE, "TRULY\n");
+
+	return ret;
+}
+#endif
 
 static void __mdss_fb_idle_notify_work(struct work_struct *work)
 {
@@ -518,6 +576,9 @@ static DEVICE_ATTR(idle_time, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_idle_time, mdss_fb_set_idle_time);
 static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
 static DEVICE_ATTR(msm_fb_panel_info, S_IRUGO, mdss_fb_get_panel_info, NULL);
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+static DEVICE_ATTR(lcm_module_id, S_IRUGO, mdss_fb_lcm_module_id, NULL);
+#endif
 
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
@@ -526,6 +587,9 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_idle_time.attr,
 	&dev_attr_idle_notify.attr,
 	&dev_attr_msm_fb_panel_info.attr,
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+	&dev_attr_lcm_module_id.attr,
+#endif
 	NULL,
 };
 
@@ -593,6 +657,12 @@ static int mdss_fb_probe(struct platform_device *pdev)
 
 	mfd->ext_ad_ctrl = -1;
 	mfd->bl_level = 0;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if (mfd->index == 0) {
+		mfd->bl_level = pdata->panel_info.bl_max;
+		mfd->unset_bl_level = mfd->bl_level;
+	}
+#endif
 	mfd->bl_level_prev_scaled = 0;
 	mfd->bl_scale = 1024;
 	mfd->bl_min_lvl = 30;
@@ -1463,6 +1533,170 @@ static int mdss_fb_alloc_fbmem(struct msm_fb_data_type *mfd)
 		return -ENOMEM;
 	}
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static int mdss_fb_show_logo(char* path, struct fb_info *fbi)
+{
+	if(mdss_display_splash_LK())
+		fih_load_rle_image(path);
+	else
+		mdss_load_rle565_image(path,0);
+	return mdss_fb_pan_display(&fbi->var, fbi);
+}
+
+static int draw_pic = 0;
+static int DisplayHandle=0;
+extern int mdss_mdp_overlay_start_splash(struct msm_fb_data_type *mfd);
+
+static ssize_t mdss_fb_show_battery(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct fb_info *info = registered_fb[0];
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	int last_bl_level = 0;
+	int battery_state = 0;
+	char rlefile[50];
+	long data = 0;
+	int error = strict_strtol(buf, 10, &data);
+	struct mdss_panel_data *pdata = NULL;
+
+	if (error) {
+		printk(KERN_ERR "[DISPLAY]%s: failure, buf <%s>, data <%ld>, err <%d>\n",
+				__func__, buf, data, error);
+	}
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	if(!DisplayHandle && mdss_display_splash_LK())
+	{
+		DisplayHandle++;
+		mdss_fb_open(info, current->tgid);
+		mfd->panel_power_on = 0;
+		mdss_mdp_overlay_start_splash(mfd);
+		memset(info->screen_base, 0x0,
+						((736*info->var.yres*info->var.bits_per_pixel)>>3));
+
+	}
+
+	battery_state = (int)data;
+	draw_pic = battery_state;
+	snprintf(rlefile, 50, "/res/images/charger/ca0%d.rle", battery_state+1); //CORE-DL-ShowBattery-00
+
+	printk(KERN_INFO "[DISPLAY]%s state=%d\n", __func__, battery_state);
+	switch (battery_state) {
+		case BATTERY_EMPTY:
+		case BATTERY_LEVEL_01:
+		case BATTERY_LEVEL_02:
+		case BATTERY_LEVEL_03:
+		case BATTERY_LEVEL_04:
+		case BATTERY_LEVEL_05:
+		case BATTERY_FULL:
+			mdss_fb_show_logo(rlefile, info);
+			break;
+		case BATTERY_DISP_ON:
+			mdss_fb_blank_sub(FB_BLANK_UNBLANK, info, mfd->op_enable);
+			mutex_lock(&mfd->bl_lock);
+			mdss_fb_set_backlight(mfd, pdata->panel_info.bl_max);
+			mutex_unlock(&mfd->bl_lock);
+			break;
+		case BATTERY_DISP_OFF:
+			last_bl_level = mfd->bl_level;
+			mfd->bl_level = 0;
+			mdss_fb_set_backlight(mfd, LED_OFF);
+			mfd->bl_level = last_bl_level;
+			snprintf(rlefile, 50, "/res/images/charger/ca0%d.rle", draw_pic+1);
+//			mdss_load_rle565_image(rlefile,1);
+			memset(info->screen_base, 0x0,
+							((736*info->var.yres*info->var.bits_per_pixel)>>3));
+
+			mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info, mfd->op_enable);
+			break;
+		case DISP_LOGO:
+			mdss_fb_show_logo(INIT_IMAGE_FILE, info);
+			break;
+		default:
+			printk(KERN_ERR "[DISPLAY]%s Invalid battery state\n", __func__);
+			break;
+	}
+
+	return size;
+}
+static DEVICE_ATTR(display_battery, 0644, NULL, mdss_fb_show_battery);
+
+static ssize_t mdss_fb_store_factoryreset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct fb_info *info = registered_fb[0];
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	int last_bl_level = 0;
+	int reset_state = 0;
+	char rlefile[50];
+	long data = 0;
+	int error = strict_strtol(buf, 10, &data);
+	struct mdss_panel_data *pdata = NULL;
+
+	SplashScreenState = 2;
+	if (error) {
+		printk(KERN_ERR "[DISPLAY]%s: failure, buf <%s>, data <%ld>, err <%d>\n",
+				__func__, buf, data, error);
+	}
+	pdata = dev_get_platdata(&mfd->pdev->dev);
+
+	if(!DisplayHandle && mdss_display_splash_LK())
+	{
+		DisplayHandle++;
+		mfd->panel_power_on = 1;
+		mdss_fb_open(info, current->tgid);
+		mdss_mdp_overlay_start_splash(mfd);
+		memset(info->screen_base, 0x0,
+						(736*info->var.yres*info->var.bits_per_pixel)>>3);
+
+	}
+
+	reset_state = (int)data;
+	draw_pic = reset_state;
+	snprintf(rlefile, 50, "/res/images/reset/rst0%d.rle", reset_state); 
+
+	printk(KERN_INFO "[DISPLAY]%s state=%d\n", __func__, reset_state);
+	switch (reset_state) {
+		case RESET:
+		case RESET_01:
+		case RESET_02:
+		case RESET_03:
+		case RESET_04:
+		case RESET_05:
+		case RESET_06:
+		case RESET_07:
+			mdss_fb_show_logo(rlefile, info);
+			break;
+		case RESET_DISP_ON:
+			mdss_fb_blank_sub(FB_BLANK_UNBLANK, info, mfd->op_enable);
+			mutex_lock(&mfd->bl_lock);
+			mdss_fb_set_backlight(mfd, pdata->panel_info.bl_max);
+			mutex_unlock(&mfd->bl_lock);
+			break;
+		case RESET_DISP_OFF:
+			last_bl_level = mfd->bl_level;
+			mfd->bl_level = 0;
+			mdss_fb_set_backlight(mfd, LED_OFF);
+			mfd->bl_level = last_bl_level;
+			snprintf(rlefile, 50, "/res/images/reset/rst0%d.rle", draw_pic);
+//			mdss_load_rle565_image(rlefile,1);
+			memset(info->screen_base, 0x0,
+							((736*info->var.yres*info->var.bits_per_pixel)>>3));
+
+			mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info, mfd->op_enable);
+			break;
+		case RESET_DISP_BACKLIGHT:
+			backlight_early_init = 1;
+			break;
+		default:
+			printk(KERN_ERR "[DISPLAY]%s Invalid battery state\n", __func__);
+			break;
+	}
+
+	return size;
+}
+static DEVICE_ATTR(frst, 0644, NULL, mdss_fb_store_factoryreset);
+#endif
 
 static int mdss_fb_register(struct msm_fb_data_type *mfd)
 {
@@ -1693,10 +1927,148 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 
 	pr_info("FrameBuffer[%d] %dx%d registered successfully!\n", mfd->index,
 					fbi->var.xres, fbi->var.yres);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if (mfd->index == 0) {
+		/* File node: /sys/class/graphics/fb?/display_battery */
+		ret = device_create_file(fbi->dev, &dev_attr_display_battery);
+		if (ret) {
+			printk(KERN_ERR "[DISPLAY]%s: create dev_attr_display_battery failed, ret <%d>\n",
+					__func__, ret);
+		}
+		ret = device_create_file(fbi->dev, &dev_attr_manufactory_id);
+		if (ret) {
+		       printk(KERN_ERR "[DISPLAY]%s: create dev_attr_manufactory_id failed, ret <%d>\n",
+		                       __func__, ret);
+		}
+		ret = device_create_file(fbi->dev, &dev_attr_frst);
+		if (ret) {
+		       printk(KERN_ERR "[DISPLAY]%s: create dev_attr_frst failed, ret <%d>\n",
+		                       __func__, ret);
+		}
 
+	}
+#endif
 	return 0;
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static int mdss_fb_open_sub(struct fb_info *info, int user)
+{
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	struct mdss_fb_proc_info *pinfo = NULL;
+	int result;
+	int pid = current->tgid;
 
+	if (mfd->shutdown_pending) {
+		pr_err("Shutdown pending. Aborting operation\n");
+		return -EPERM;
+	}
+
+	list_for_each_entry(pinfo, &mfd->proc_list, list) {
+		if (pinfo->pid == pid)
+			break;
+	}
+
+	if ((pinfo == NULL) || (pinfo->pid != pid)) {
+		pinfo = kmalloc(sizeof(*pinfo), GFP_KERNEL);
+		if (!pinfo) {
+			pr_err("unable to alloc process info\n");
+			return -ENOMEM;
+		}
+		pinfo->pid = pid;
+		pinfo->ref_cnt = 0;
+		list_add(&pinfo->list, &mfd->proc_list);
+		pr_debug("new process entry pid=%d\n", pinfo->pid);
+	}
+
+	result = pm_runtime_get_sync(info->dev);
+
+	if (result < 0) {
+		pr_err("pm_runtime: fail to wake up\n");
+		goto pm_error;
+	}
+
+	if (!mfd->ref_cnt) {
+		mfd->disp_thread = kthread_run(__mdss_fb_display_thread, mfd,
+				"mdss_fb%d", mfd->index);
+		if (IS_ERR(mfd->disp_thread)) {
+			pr_err("unable to start display thread %d\n",
+				mfd->index);
+			result = PTR_ERR(mfd->disp_thread);
+			mfd->disp_thread = NULL;
+			goto thread_error;
+		}
+
+		result = mdss_fb_blank_sub(FB_BLANK_UNBLANK, info,
+					   mfd->op_enable);
+		if (result) {
+			pr_err("can't turn on fb%d! rc=%d\n", mfd->index,
+				result);
+			goto blank_error;
+		}
+	}
+
+	pinfo->ref_cnt++;
+	mfd->ref_cnt++;
+
+	/* Stop the splash thread once userspace open the fb node */
+	if (mfd->splash_thread && mfd->ref_cnt > 1) {
+		kthread_stop(mfd->splash_thread);
+		mfd->splash_thread = NULL;
+	}
+
+	return 0;
+
+blank_error:
+	kthread_stop(mfd->disp_thread);
+	mfd->disp_thread = NULL;
+
+thread_error:
+	if (pinfo && !pinfo->ref_cnt) {
+		list_del(&pinfo->list);
+		kfree(pinfo);
+	}
+	pm_runtime_put(info->dev);
+
+pm_error:
+	return result;
+}
+
+static int mdss_fb_open(struct fb_info *info, int user)
+{
+	struct msm_fb_data_type *mfd = NULL;
+	struct mdss_panel_data *pdata = NULL;
+
+	if (info->node == 0) {
+		if(SplashScreenState == 2){
+			mdss_fb_open_sub(info,user);
+		}else if(SplashScreenState == 1){
+			mfd = (struct msm_fb_data_type *)info->par;
+			pdata = dev_get_platdata(&mfd->pdev->dev);
+
+			mutex_lock(&mfd->bl_lock);
+			mdss_fb_set_backlight(mfd, LED_OFF);
+			mutex_unlock(&mfd->bl_lock);
+
+			memset(info->screen_base, 0x0,
+				(info->var.xres*info->var.yres*info->var.bits_per_pixel)>>3);
+			mdss_fb_release(info, user);
+			mdss_fb_open_sub(info,user);
+
+			mutex_lock(&mfd->bl_lock);
+			mdss_fb_set_backlight(mfd, pdata->panel_info.bl_max);
+			mutex_unlock(&mfd->bl_lock);
+
+			SplashScreenState = 2;
+		}else{
+			mdss_fb_open_sub(info,user);
+			SplashScreenState = 1;
+		}
+	} else {
+		mdss_fb_open_sub(info,user);
+	}
+	return 0;
+}
+#else
 static int mdss_fb_open(struct fb_info *info, int user)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
@@ -1774,6 +2146,7 @@ thread_error:
 pm_error:
 	return result;
 }
+#endif 
 
 static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 {

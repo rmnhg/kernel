@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2013 Sony Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1122,6 +1123,11 @@ static struct device_node *mdss_dsi_pref_prim_panel(
  *
  * returns pointer to panel node on success, NULL on error.
  */
+
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+#define TEMP_BUF_LEN		14
+char temp_buf[TEMP_BUF_LEN]={0};
+#endif
 static struct device_node *mdss_dsi_find_panel_of_node(
 		struct platform_device *pdev, char *panel_cfg)
 {
@@ -1157,6 +1163,9 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 				panel_name[i] = *(stream + i);
 			panel_name[i] = 0;
 		}
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+		strlcpy(temp_buf, (panel_name+14), TEMP_BUF_LEN);
+#endif
 
 		pr_debug("%s:%d:%s:%s\n", __func__, __LINE__,
 			 panel_cfg, panel_name);
@@ -1183,6 +1192,14 @@ end:
 
 	return dsi_pan_node;
 }
+
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+void mdss_get_panel_name(char *StrBuff)
+{
+	strlcpy(StrBuff, temp_buf, TEMP_BUF_LEN);
+}
+EXPORT_SYMBOL(mdss_get_panel_name);
+#endif
 
 static int __devinit mdss_dsi_ctrl_probe(struct platform_device *pdev)
 {
@@ -1481,7 +1498,27 @@ int dsi_panel_device_register(struct device_node *pan_node,
 	if (!gpio_is_valid(ctrl_pdata->disp_en_gpio))
 		pr_err("%s:%d, Disp_en gpio not specified\n",
 						__func__, __LINE__);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	ctrl_pdata->disp_p5_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-p5-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->disp_p5_gpio)) {
+		printk("%s:%d, Disp_p5 gpio not specified\n",
+						__func__, __LINE__);
+	}
+	ctrl_pdata->disp_n5_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-n5-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->disp_n5_gpio)) {
+		printk("%s:%d, Disp_n5 gpio not specified\n",
+						__func__, __LINE__);
+	}
 
+	ctrl_pdata->disp_te_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-te-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->disp_te_gpio)) {
+		pr_err("%s:%d, Disp_te gpio not specified\n",
+						__func__, __LINE__);
+	}
+#else
 	if (pinfo->type == MIPI_CMD_PANEL) {
 		ctrl_pdata->disp_te_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
 						"qcom,platform-te-gpio", 0);
@@ -1490,7 +1527,7 @@ int dsi_panel_device_register(struct device_node *pan_node,
 						__func__, __LINE__);
 		}
 	}
-
+#endif
 	if (gpio_is_valid(ctrl_pdata->disp_te_gpio) &&
 					pinfo->type == MIPI_CMD_PANEL) {
 		rc = gpio_request(ctrl_pdata->disp_te_gpio, "disp_te");
@@ -1529,7 +1566,8 @@ int dsi_panel_device_register(struct device_node *pan_node,
 	if (!gpio_is_valid(ctrl_pdata->rst_gpio))
 		pr_err("%s:%d, reset gpio not specified\n",
 						__func__, __LINE__);
-
+        
+#ifndef CONFIG_MACH_SONY_SEAGULL
 	if (pinfo->mode_gpio_state != MODE_GPIO_NOT_VALID) {
 
 		ctrl_pdata->mode_gpio = of_get_named_gpio(
@@ -1541,7 +1579,7 @@ int dsi_panel_device_register(struct device_node *pan_node,
 	} else {
 		ctrl_pdata->mode_gpio = -EINVAL;
 	}
-
+#endif
 	if (mdss_dsi_clk_init(ctrl_pdev, ctrl_pdata)) {
 		pr_err("%s: unable to initialize Dsi ctrl clks\n", __func__);
 		return -EPERM;

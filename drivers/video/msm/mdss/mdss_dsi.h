@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2013 Sony Mobile Communications AB.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,6 +21,7 @@
 #include "mdss_panel.h"
 #include "mdss_io_util.h"
 #include "mdss_dsi_cmd.h"
+#include "mdss_fb.h"
 
 #define MMSS_SERDES_BASE_PHY 0x04f01000 /* mmss (De)Serializer CFG */
 
@@ -270,6 +272,10 @@ struct mdss_dsi_ctrl_pdata {
 	int panel_mode;
 	int irq_cnt;
 	int rst_gpio;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	int disp_p5_gpio;
+	int disp_n5_gpio;
+#endif
 	int disp_en_gpio;
 	int disp_te_gpio;
 	int mode_gpio;
@@ -316,6 +322,10 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_buf rx_buf;
 	struct dsi_buf status_buf;
 	int status_mode;
+#ifdef CONFIG_MACH_SONY_FLAMINGO
+	struct regulator *vdd_io_vreg;
+	struct regulator *vdda_vreg;
+#endif	
 };
 
 struct dsi_status_data {
