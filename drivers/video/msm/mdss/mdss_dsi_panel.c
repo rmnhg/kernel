@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * Copyright(C) 2013 Foxconn International Holdings, Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,12 +24,117 @@
 #include <linux/err.h>
 
 #include "mdss_dsi.h"
-
+#ifdef CONFIG_MACH_SONY_SEAGULL 
+#include <linux/fih_hw_info.h>
+#endif
 #define DT_CMD_HDR 6
 
 #define MIN_REFRESH_RATE 30
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
+
+#ifdef CONFIG_MACH_SONY_SEAGULL
+#define JDI_NON_PANEL_ID  0x00
+#define JDI_PANEL_ID      0x61
+#define TRULY_PANEL_ID    0x63
+#define TRULY_OTP_PANEL_ID    0x64
+#define INNOLUX_PANEL_ID    0x65
+#define INNOLUX_OTP_PANEL_ID    0x66
+
+static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
+struct device_node *gMIPIDSInode;
+
+/*display_on_in_boot FLAG will get LK CMD line(display_status=) and passer it */
+static bool display_on_in_boot = false;
+
+/*DisplayGpioInit FLAG used in gpio have initial all uninitial when call gpio setting*/
+static int DisplayGpioInit=0;
+
+/*DisplayGpioReady FLAG used in first gpio initial and register gpio goto which state in cool boot*/
+static int DisplayGpioReady=0;
+
+/*PanelState FLAG use for touch panel, announce touch driver display status */
+static bool PanelState = 0x1;
+
+static unsigned char gFirstChange = 0;
+static unsigned char gPanelModel = 0;
+static char manufacture_idDA[2] = {0xDA, 0x00};
+static struct dsi_cmd_desc manufacture_id_cmd = {
+	.dchdr = {
+		DTYPE_DCS_READ, 1, 0, 1, 20, sizeof(manufacture_idDA),
+	},
+	.payload = manufacture_idDA,
+};
+
+bool mdss_display_power_state(void)
+{
+	return PanelState;
+}
+EXPORT_SYMBOL(mdss_display_power_state);
+
+
+unsigned char mdss_manufacture_id_read(void)
+{
+	return gPanelModel;
+}
+
+static void mdss_manufacture_cb(int data)
+{
+	return;
+}
+
+unsigned char mdss_manufacture_id(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct dcs_cmd_req cmdreq;
+	char rx_buffer=0xFF;
+
+	memset(&cmdreq, 0, sizeof(cmdreq));
+
+	cmdreq.cmds = &manufacture_id_cmd;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+	cmdreq.rlen = 1;
+	cmdreq.cb = mdss_manufacture_cb;
+	cmdreq.rbuf = &rx_buffer;
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+	memcpy(&rx_buffer,cmdreq.rbuf,sizeof(char));
+	gPanelModel = rx_buffer;
+
+	return gPanelModel;
+}
+int mdss_change_dcs_cmd(struct device_node *npIn,
+		struct mdss_dsi_ctrl_pdata *ctrl, const char* name, const int id)
+{
+	struct device_node *all_nodes = NULL;
+	struct device_node *np = npIn;
+	char* panel_name = np->properties->value;
+	char cmd_name[30] = {0};
+	int cmd_name_size = sizeof(cmd_name)/sizeof(cmd_name[0]);
+
+	printk("[DISPLAY]%s: %s, id 0x%x\n", __func__, panel_name, id);
+
+	if (strncmp(panel_name, name, strnlen(name, 128)) || !gFirstChange) {
+		all_nodes = of_find_all_nodes(NULL);
+		np = of_find_compatible_node(all_nodes, NULL, name);
+		npIn = np;
+
+		snprintf(cmd_name, cmd_name_size, "qcom,mdss-dsi-on-command-%x", id);
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->on_cmds,
+			cmd_name, "qcom,mdss-dsi-on-command-state");
+
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->off_cmds,
+			"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+
+		gFirstChange = 1;
+		panel_name = np->properties->value;
+
+		printk("[DISPLAY]%s: change to %s\n", __func__, panel_name);
+	}
+
+    return 0;
+}
+#endif
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -150,13 +256,23 @@ static struct dsi_cmd_desc backlight_cmd = {
 	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},
 	led_pwm1
 };
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static int last_bl_level = 0;
+static int backlightstart = 0;
+#endif
 
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dcs_cmd_req cmdreq;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if (!level || !last_bl_level) {
+		printk(KERN_ERR "[DISPLAY]%s: %d to %d\n",
+				__func__, last_bl_level, level);
+	}
+	last_bl_level = level;
+#else
 	pr_debug("%s: level=%d\n", __func__, level);
-
+#endif
 	led_pwm1[1] = (unsigned char)level;
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
@@ -166,7 +282,21 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 
+#ifdef CONFIG_MACH_SONY_SEAGULL 
+	/*Note: Due to move logo to LK, so there are some boot up flow be change.
+	When first boot to OS framework will call backlight first, but mdss isn't ready
+	so we ignore first call backlight in bootup.*/
+	if(!backlightstart && display_on_in_boot)
+	{
+		backlightstart++;
+		return;
+	}
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+	if(!level)
+		PanelState = 0;
+#else
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+#endif
 }
 
 static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
@@ -188,6 +318,21 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			rc);
 		goto rst_gpio_err;
 	}
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	rc = gpio_request(ctrl_pdata->disp_p5_gpio, "disp_p5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto p5_gpio_err;
+	}
+
+	rc = gpio_request(ctrl_pdata->disp_n5_gpio, "disp_n5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto n5_gpio_err;
+	}
+#else
 	if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 		rc = gpio_request(ctrl_pdata->mode_gpio, "panel_mode");
 		if (rc) {
@@ -196,9 +341,19 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			goto mode_gpio_err;
 		}
 	}
+#endif
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	DisplayGpioInit = 1;
+#endif
 	return rc;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+n5_gpio_err:
+	gpio_free(ctrl_pdata->disp_n5_gpio);
+p5_gpio_err:
+	gpio_free(ctrl_pdata->disp_p5_gpio);
+#else
 mode_gpio_err:
+#endif
 	gpio_free(ctrl_pdata->rst_gpio);
 rst_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
@@ -211,7 +366,11 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_info *pinfo = NULL;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	int i=0, rc = 0;
+#else
 	int i, rc = 0;
+#endif
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -236,29 +395,60 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	if (enable) {
+#ifdef CONFIG_MACH_SONY_SEAGULL
+		/*NOTE: Base on this BSP display initial sequence architecture.
+		    When initial display in LK, we need ignore first initial gpio in kernel*/
+		if((!DisplayGpioReady)&&(display_on_in_boot))
+		{
+			DisplayGpioReady=1;
+			printk("[DISPLAY]%s: Gpio have been init before\n", __func__ );
+			return rc;
+		}
+#endif
 		rc = mdss_dsi_request_gpios(ctrl_pdata);
 		if (rc) {
 			pr_err("gpio request failed\n");
 			return rc;
 		}
 		if (!pinfo->panel_power_on) {
+#ifdef CONFIG_MACH_SONY_SEAGULL
+			gpio_set_value((ctrl_pdata->disp_en_gpio),0);
+			gpio_set_value((ctrl_pdata->disp_p5_gpio),0);
+			gpio_set_value((ctrl_pdata->disp_n5_gpio),0);
+
+			msleep(1);
+#endif
 			if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 				gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+			if (gpio_is_valid(ctrl_pdata->disp_p5_gpio))
+				gpio_set_value((ctrl_pdata->disp_p5_gpio) , 1);
 
+			msleep(1);
+			if (gpio_is_valid(ctrl_pdata->disp_n5_gpio))
+				gpio_set_value((ctrl_pdata->disp_n5_gpio) , 1);
+
+			msleep(50);
+#endif
 			for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
 				gpio_set_value((ctrl_pdata->rst_gpio),
 					pdata->panel_info.rst_seq[i]);
 				if (pdata->panel_info.rst_seq[++i])
+#ifdef CONFIG_MACH_SONY_SEAGULL
+					msleep(pinfo->rst_seq[i]);
+#else
 					usleep(pinfo->rst_seq[i] * 1000);
+#endif
 			}
 		}
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
 		if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 			if (pinfo->mode_gpio_state == MODE_GPIO_HIGH)
 				gpio_set_value((ctrl_pdata->mode_gpio), 1);
 			else if (pinfo->mode_gpio_state == MODE_GPIO_LOW)
 				gpio_set_value((ctrl_pdata->mode_gpio), 0);
 		}
+#endif
 		if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT) {
 			pr_debug("%s: Panel Not properly turned OFF\n",
 						__func__);
@@ -266,6 +456,45 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
 	} else {
+#ifdef CONFIG_MACH_SONY_SEAGULL
+		/*NOTE: Base on this BSP display initial sequence architecture.
+		   LK have initial gpio when boot to  kernel don't request gpio. 
+		   When first power off display, we need to request gpio.
+		   Or there is power consumption issue*/
+
+		if((DisplayGpioReady==1)&&(display_on_in_boot))
+		{
+			rc = mdss_dsi_request_gpios(ctrl_pdata);
+			DisplayGpioReady=2;
+			printk("[DISPLAY]%s: Request gpio for release fist deinit\n", __func__ );
+		}
+
+
+		if(DisplayGpioInit)
+		{
+			if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
+				gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
+				gpio_free(ctrl_pdata->disp_en_gpio);
+			}
+
+			if (gpio_is_valid(ctrl_pdata->disp_n5_gpio))
+			{
+				gpio_set_value((ctrl_pdata->disp_n5_gpio) , 0);
+				gpio_free(ctrl_pdata->disp_n5_gpio);
+			}
+			msleep(10);
+			if (gpio_is_valid(ctrl_pdata->disp_p5_gpio))
+			{
+				gpio_set_value((ctrl_pdata->disp_p5_gpio) , 0);
+				gpio_free(ctrl_pdata->disp_p5_gpio);
+			}
+			msleep(10);
+			gpio_set_value((ctrl_pdata->rst_gpio), 0);
+			gpio_free(ctrl_pdata->rst_gpio);
+
+		}
+		DisplayGpioInit = 0;
+#else
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
 			gpio_free(ctrl_pdata->disp_en_gpio);
@@ -274,6 +503,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 		gpio_free(ctrl_pdata->rst_gpio);
 		if (gpio_is_valid(ctrl_pdata->mode_gpio))
 			gpio_free(ctrl_pdata->mode_gpio);
+#endif
 	}
 	return rc;
 }
@@ -425,13 +655,45 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if (ctrl) {
+		mdss_manufacture_id(ctrl);
+		switch (gPanelModel) {
+			case JDI_NON_PANEL_ID:
+			case JDI_PANEL_ID:
+				mdss_change_dcs_cmd(gMIPIDSInode, ctrl,
+						"qcom,mdss-dsi-panel-jdi", gPanelModel);
+				break;
+			case TRULY_PANEL_ID:
+			case TRULY_OTP_PANEL_ID:
+				mdss_change_dcs_cmd(gMIPIDSInode, ctrl,
+						"qcom,mdss-dsi-panel-truly", gPanelModel);
+				break;
+			case INNOLUX_PANEL_ID:
+			case INNOLUX_OTP_PANEL_ID:
+				mdss_change_dcs_cmd(gMIPIDSInode, ctrl,
+						"qcom,mdss-dsi-panel-innolux", gPanelModel);
+				break;
 
+			default:
+				printk(KERN_ERR "[DISPLAY] illegal PID <0x%x>\n", gPanelModel);
+				break;
+		}
+#else
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
-
+#endif
 	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	} else {
+		printk(KERN_WARNING "%s: ctrl=%p gPanelModel=%d\n",
+			__func__, ctrl, gPanelModel);
+	}
+	PanelState = 1;
+	printk("[DISPLAY]%s: -\n", __func__);
+#else
 	pr_debug("%s:-\n", __func__);
+#endif
 	return 0;
 }
 
@@ -451,11 +713,23 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	mipi  = &pdata->panel_info.mipi;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if (ctrl) {
+#else
+#endif
 	if (ctrl->off_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->off_cmds);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	} else {
+		printk(KERN_WARNING "%s: ctrl=%p gPanelModel=%d\n",
+			__func__, ctrl, gPanelModel);
+	}
+	/* MM-KW-DISPLAY-panel-01-} */
+	pr_info("[DISPLAY]%s: -\n", __func__);
 
+#else
 	pr_debug("%s:-\n", __func__);
+#endif
 	return 0;
 }
 
@@ -1030,12 +1304,50 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				__func__);
 		pinfo->pdest = DISPLAY_1;
 	}
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	/*
+	 *Due to Dsense issue, we use different border avoid this issue.
+	 * LTE:514M
+	 *3G:800M
+	 */
+	if((fih_get_band_id() == BAND_125)||(fih_get_band_id() ==BAND_1258))
+	{
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch", &tmp);
+		pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-back-porch", &tmp);
+		pinfo->lcdc.h_back_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-pulse-width", &tmp);
+		pinfo->lcdc.h_pulse_width = (!rc ? tmp : 2);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch", &tmp);
+		pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-back-porch", &tmp);
+		pinfo->lcdc.h_back_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-pulse-width", &tmp);
+		pinfo->lcdc.h_pulse_width = (!rc ? tmp : 2);
+	}
+	else
+	{
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch-lte", &tmp);
+		pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-back-porch-lte", &tmp);
+		pinfo->lcdc.h_back_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-h-pulse-width-lte", &tmp);
+		pinfo->lcdc.h_pulse_width = (!rc ? tmp : 2);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-v-back-porch-lte", &tmp);
+		pinfo->lcdc.v_back_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-v-front-porch-lte", &tmp);
+		pinfo->lcdc.v_front_porch = (!rc ? tmp : 6);
+		rc = of_property_read_u32(np, "qcom,mdss-dsi-v-pulse-width-lte", &tmp);
+		pinfo->lcdc.v_pulse_width = (!rc ? tmp : 2);
+	}
+#else
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch", &tmp);
 	pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-back-porch", &tmp);
 	pinfo->lcdc.h_back_porch = (!rc ? tmp : 6);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-pulse-width", &tmp);
 	pinfo->lcdc.h_pulse_width = (!rc ? tmp : 2);
+#endif
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-sync-skew", &tmp);
 	pinfo->lcdc.hsync_skew = (!rc ? tmp : 0);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-v-back-porch", &tmp);
@@ -1177,7 +1489,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-stream", &tmp);
 	pinfo->mipi.stream = (!rc ? tmp : 0);
-
+#ifndef CONFIG_MACH_SONY_SEAGULL
 	data = of_get_property(np, "qcom,mdss-dsi-panel-mode-gpio-state", NULL);
 	if (data) {
 		if (!strcmp(data, "high"))
@@ -1187,12 +1499,23 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	} else {
 		pinfo->mode_gpio_state = MODE_GPIO_NOT_VALID;
 	}
-
+#endif
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-framerate", &tmp);
 	pinfo->mipi.frame_rate = (!rc ? tmp : 60);
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-clockrate", &tmp);
 	pinfo->clk_rate = (!rc ? tmp : 0);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if((fih_get_band_id() == BAND_125)||(fih_get_band_id() ==BAND_1258))
+	{
+		data = of_get_property(np, "qcom,mdss-dsi-panel-timings", &len);
+	}
+	else
+	{
+		data = of_get_property(np, "qcom,mdss-dsi-panel-timings-lte", &len);
+	}
+#else
 	data = of_get_property(np, "qcom,mdss-dsi-panel-timings", &len);
+#endif
 	if ((!data) || (len != 12)) {
 		pr_err("%s:%d, Unable to read Phy timing settings",
 		       __func__, __LINE__);
@@ -1282,6 +1605,9 @@ int mdss_dsi_panel_init(struct device_node *node,
 		pr_info("%s: Panel Name = %s\n", __func__, panel_name);
 
 	rc = mdss_panel_parse_dt(node, ctrl_pdata);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	gMIPIDSInode = node;
+#endif
 	if (rc) {
 		pr_err("%s:%d panel dt parse failed\n", __func__, __LINE__);
 		return rc;

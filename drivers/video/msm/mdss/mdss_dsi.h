@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright(C) 2013 Foxconn International Holdings, Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -270,6 +271,10 @@ struct mdss_dsi_ctrl_pdata {
 	int panel_mode;
 	int irq_cnt;
 	int rst_gpio;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	int disp_p5_gpio;
+	int disp_n5_gpio;
+#endif
 	int disp_en_gpio;
 	int disp_te_gpio;
 	int mode_gpio;

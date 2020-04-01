@@ -59,6 +59,9 @@
 #include "modem_notifier.h"
 #include "spm-regulator.h"
 #include "sony_board.h"
+#ifdef CONFIG_MACH_SONY_SEAGULL
+#include <linux/fih_hw_info.h>
+#endif
 
 static struct memtype_reserve msm8226_reserve_table[] __initdata = {
 	[MEMTYPE_SMI] = {
@@ -171,7 +174,9 @@ void __init msm8226_init(void)
 
 	if (socinfo_init() < 0)
 		pr_err("%s: socinfo_init() failed\n", __func__);
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	fih_hwid_get();
+#endif
 	msm8226_init_gpiomux();
 	board_dt_populate(adata);
 	msm8226_add_drivers();
