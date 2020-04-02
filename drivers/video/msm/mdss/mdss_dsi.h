@@ -270,6 +270,10 @@ struct mdss_dsi_ctrl_pdata {
 	int panel_mode;
 	int irq_cnt;
 	int rst_gpio;
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	int disp_p5_gpio;
+	int disp_n5_gpio;
+#endif
 	int disp_en_gpio;
 	int disp_te_gpio;
 	int mode_gpio;
@@ -428,4 +432,7 @@ static inline struct mdss_dsi_ctrl_pdata *mdss_dsi_get_ctrl_by_index(int ndx)
 
 	return ctrl_list[ndx];
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+unsigned char mdss_manufacture_id_read(void);
+#endif
 #endif /* MDSS_DSI_H */
