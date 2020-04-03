@@ -228,17 +228,7 @@
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
-		qcom,mdss-dsi-reset-sequence = <1 150>;
-		somc,panel-id = [00];
-		somc,pwr-positive5-gpio = <&msmgpio 2 0>;
-		somc,pwr-negative5-gpio = <&msmgpio 3 0>;
-		somc,driver-ic = <4>;
-		somc,panel-detect = <1>;
-		somc,panel-id-read-cmds;
-		somc,alt-panelid-cmd;
-		somc,dsi-restart-hack;
-		somc,no-vsn-gpio;
-		somc,no-vsp-gpio;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
 	dsi_nt35521_720_vid_jdi61: qcom,mdss_dsi_nt35521_720p_video_jdi61 {
@@ -309,17 +299,7 @@
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
-		qcom,mdss-dsi-reset-sequence = <1 150>;
-		somc,panel-id = [61];
-		somc,pwr-positive5-gpio = <&msmgpio 2 0>;
-		somc,pwr-negative5-gpio = <&msmgpio 3 0>;
-		somc,driver-ic = <4>;
-		somc,panel-detect = <1>;
-		somc,panel-id-read-cmds;
-		somc,alt-panelid-cmd;
-		somc,dsi-restart-hack;
-		somc,no-vsn-gpio;
-		somc,no-vsp-gpio;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
 	dsi_nt35521_720_vid_truly63: qcom,mdss_dsi_nt35521_720p_video_truly63 {
@@ -586,17 +566,7 @@
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
-		qcom,mdss-dsi-reset-sequence = <1 150>;
-		somc,panel-id = [63];
-		somc,pwr-positive5-gpio = <&msmgpio 2 0>;
-		somc,pwr-negative5-gpio = <&msmgpio 3 0>;
-		somc,driver-ic = <4>;
-		somc,panel-detect = <1>;
-		somc,panel-id-read-cmds;
-		somc,alt-panelid-cmd;
-		somc,dsi-restart-hack;
-		somc,no-vsn-gpio;
-		somc,no-vsp-gpio;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
 	dsi_nt35521_720_vid_truly64: qcom,mdss_dsi_nt35521_720p_video_truly64 {
@@ -667,17 +637,7 @@
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
-		qcom,mdss-dsi-reset-sequence = <1 150>;
-		somc,panel-id = [64];
-		somc,pwr-positive5-gpio = <&msmgpio 2 0>;
-		somc,pwr-negative5-gpio = <&msmgpio 3 0>;
-		somc,driver-ic = <4>;
-		somc,panel-detect = <1>;
-		somc,panel-id-read-cmds;
-		somc,alt-panelid-cmd;
-		somc,dsi-restart-hack;
-		somc,no-vsn-gpio;
-		somc,no-vsp-gpio;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
 	dsi_nt35521_720_vid_innolux65: qcom,mdss_dsi_nt35521_720p_video_innolux65 {
@@ -927,17 +887,7 @@
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
-		qcom,mdss-dsi-reset-sequence = <1 150>;
-		somc,panel-id = [65];
-		somc,pwr-positive5-gpio = <&msmgpio 2 0>;
-		somc,pwr-negative5-gpio = <&msmgpio 3 0>;
-		somc,driver-ic = <4>;
-		somc,panel-detect = <1>;
-		somc,alt-panelid-cmd;
-		somc,dsi-restart-hack;
-		somc,panel-id-read-cmds;
-		somc,no-vsn-gpio;
-		somc,no-vsp-gpio;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
 	dsi_nt35521_720_vid_innolux66: qcom,mdss_dsi_nt35521_720p_video_innolux66 {
@@ -1009,16 +959,6 @@
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
 		qcom,platform-reset-gpio = <&msmgpio 25 0>;
-		qcom,mdss-dsi-reset-sequence = <1 150>;
-		somc,panel-id = [66];
-		somc,pwr-positive5-gpio = <&msmgpio 2 0>;
-		somc,pwr-negative5-gpio = <&msmgpio 3 0>;
-		somc,driver-ic = <4>;
-		somc,panel-detect = <1>;
-		somc,alt-panelid-cmd;
-		somc,dsi-restart-hack;
-		somc,panel-id-read-cmds;
-		somc,no-vsn-gpio;
-		somc,no-vsp-gpio;
+		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 };
