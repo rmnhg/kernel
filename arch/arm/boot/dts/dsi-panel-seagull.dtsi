@@ -227,7 +227,6 @@
 		qcom,mdss-dsi-dma-trigger = <4>;
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
@@ -298,7 +297,6 @@
 		qcom,mdss-dsi-dma-trigger = <4>;
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
@@ -565,7 +563,6 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
@@ -636,7 +633,6 @@
 		qcom,mdss-dsi-dma-trigger = "trigger_sw";
 		qcom,mdss-dsi-mdp-trigger = "none";
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
@@ -886,7 +882,6 @@
 		qcom,mdss-dsi-dma-trigger = <4>;
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 
@@ -958,7 +953,6 @@
 		qcom,mdss-dsi-dma-trigger = <4>;
 		qcom,mdss-dsi-mdp-trigger = <0>;
 		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
-		qcom,platform-reset-gpio = <&msmgpio 25 0>;
 		qcom,mdss-dsi-reset-sequence = <1 20>, <0 1>, <1 20>;
 	};
 };
