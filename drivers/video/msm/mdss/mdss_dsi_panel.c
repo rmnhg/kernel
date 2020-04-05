@@ -191,7 +191,7 @@ int mdss_change_dcs_cmd(struct device_node *npIn,
 		np = of_find_compatible_node(all_nodes, NULL, name);
 		npIn = np;
 
-		mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->on_cmds,
 			"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
 
 		mdss_dsi_parse_dcs_cmds(np, &ctrl->off_cmds,
