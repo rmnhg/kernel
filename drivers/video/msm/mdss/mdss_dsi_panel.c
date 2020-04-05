@@ -269,6 +269,21 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			rc);
 		goto rst_gpio_err;
 	}
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	rc = gpio_request(ctrl_pdata->disp_p5_gpio, "disp_p5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto p5_gpio_err;
+	}
+
+	rc = gpio_request(ctrl_pdata->disp_n5_gpio, "disp_n5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto n5_gpio_err;
+	}
+#else
 	if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 		rc = gpio_request(ctrl_pdata->mode_gpio, "panel_mode");
 		if (rc) {
@@ -277,9 +292,16 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			goto mode_gpio_err;
 		}
 	}
+#endif
 	return rc;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+n5_gpio_err:
+	gpio_free(ctrl_pdata->disp_n5_gpio);
+p5_gpio_err:
+	gpio_free(ctrl_pdata->disp_p5_gpio);
+#else
 mode_gpio_err:
+#endif
 	gpio_free(ctrl_pdata->rst_gpio);
 rst_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
@@ -333,7 +355,40 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 					usleep(pinfo->rst_seq[i] * 1000);
 			}
 		}
+#ifdef CONFIG_MACH_SONY_SEAGULL
+		if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
+			gpio_direction_output((ctrl_pdata->disp_en_gpio) , 1);
+		msleep(1);
+		if (gpio_is_valid(ctrl_pdata->disp_p5_gpio))
+			gpio_direction_output((ctrl_pdata->disp_p5_gpio) , 1);
+		msleep(1);
+		if (gpio_is_valid(ctrl_pdata->disp_n5_gpio))
+			gpio_direction_output((ctrl_pdata->disp_n5_gpio) , 1);
 
+		if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT) {
+			pr_debug("%s: Panel Not properly turned OFF\n",
+						__func__);
+			ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_INIT;
+			pr_debug("%s: Reset panel done\n", __func__);
+		}
+
+		msleep(10);
+		gpio_direction_output((ctrl_pdata->rst_gpio) , 1);
+		msleep(150);
+	} else {
+		gpio_direction_output((ctrl_pdata->rst_gpio), 0);
+		msleep(1);
+		if (gpio_is_valid(ctrl_pdata->disp_n5_gpio))
+			gpio_direction_output((ctrl_pdata->disp_n5_gpio) , 0);
+		msleep(1);
+		if (gpio_is_valid(ctrl_pdata->disp_p5_gpio))
+			gpio_direction_output((ctrl_pdata->disp_p5_gpio) , 0);
+		msleep(1);
+		if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
+			gpio_direction_output((ctrl_pdata->disp_en_gpio), 0);
+		msleep(10);
+	}
+#else
 		if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 			if (pinfo->mode_gpio_state == MODE_GPIO_HIGH)
 				gpio_set_value((ctrl_pdata->mode_gpio), 1);
@@ -356,6 +411,7 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 		if (gpio_is_valid(ctrl_pdata->mode_gpio))
 			gpio_free(ctrl_pdata->mode_gpio);
 	}
+#endif
 	return rc;
 }
 
