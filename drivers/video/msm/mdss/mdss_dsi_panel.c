@@ -50,6 +50,9 @@ unsigned char mdss_manufacture_id_read(void)
 {
 	return gPanelModel;
 }
+
+static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
 #endif
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
@@ -128,7 +131,7 @@ static struct dsi_cmd_desc dcs_read_cmd = {
 	.dchdr = {
 		DTYPE_DCS_READ, 1, 0, 1, 20, sizeof(dcs_cmd),
 	},
-	.payload = manufacture_idDA,
+	.payload = dcs_cmd,
 #else
 	{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(dcs_cmd)},
 	dcs_cmd
