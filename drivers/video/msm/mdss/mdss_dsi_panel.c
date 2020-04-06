@@ -277,7 +277,7 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 
 	rc = gpio_request(ctrl_pdata->disp_n5_gpio, "disp_n5");
 	if (rc) {
-		pr_err("request p5 gpio failed, rc=%d\n",
+		pr_err("request n5 gpio failed, rc=%d\n",
 			   rc);
 		goto n5_gpio_err;
 	}
