@@ -1481,7 +1481,26 @@ int dsi_panel_device_register(struct device_node *pan_node,
 	if (!gpio_is_valid(ctrl_pdata->disp_en_gpio))
 		pr_err("%s:%d, Disp_en gpio not specified\n",
 						__func__, __LINE__);
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	ctrl_pdata->disp_p5_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-p5-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->disp_p5_gpio)) {
+		printk("%s:%d, Disp_p5 gpio not specified\n",
+						__func__, __LINE__);
+	}
+	ctrl_pdata->disp_n5_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-n5-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->disp_n5_gpio)) {
+		printk("%s:%d, Disp_n5 gpio not specified\n",
+						__func__, __LINE__);
+	}
+		ctrl_pdata->disp_te_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+						"qcom,platform-te-gpio", 0);
+		if (!gpio_is_valid(ctrl_pdata->disp_te_gpio)) {
+			pr_err("%s:%d, Disp_te gpio not specified\n",
+						__func__, __LINE__);
+		}
+#else
 	if (pinfo->type == MIPI_CMD_PANEL) {
 		ctrl_pdata->disp_te_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
 						"qcom,platform-te-gpio", 0);
@@ -1490,7 +1509,7 @@ int dsi_panel_device_register(struct device_node *pan_node,
 						__func__, __LINE__);
 		}
 	}
-
+#endif
 	if (gpio_is_valid(ctrl_pdata->disp_te_gpio) &&
 					pinfo->type == MIPI_CMD_PANEL) {
 		rc = gpio_request(ctrl_pdata->disp_te_gpio, "disp_te");
