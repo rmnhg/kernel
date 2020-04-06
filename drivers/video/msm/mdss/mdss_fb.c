@@ -54,6 +54,9 @@
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
+#ifdef CONFIG_MACH_SONY_SEAGULL
+#include "mdss_dsi.h"
+#endif 
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -1463,7 +1466,17 @@ static int mdss_fb_alloc_fbmem(struct msm_fb_data_type *mfd)
 		return -ENOMEM;
 	}
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static ssize_t mdss_manufactory_id_show(struct device *dev,
+               struct device_attribute *attr, char *buf)
+{
+       unsigned char manufactoryID = mdss_manufacture_id_read();
 
+       return snprintf(buf, PAGE_SIZE, "%x\n", manufactoryID);
+}
+
+static DEVICE_ATTR(manufactory_id, 0644, mdss_manufactory_id_show, NULL);
+#endif
 static int mdss_fb_register(struct msm_fb_data_type *mfd)
 {
 	int ret = -ENODEV;
