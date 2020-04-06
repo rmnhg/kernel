@@ -1474,8 +1474,6 @@ static ssize_t mdss_manufactory_id_show(struct device *dev,
 
        return snprintf(buf, PAGE_SIZE, "%x\n", manufactoryID);
 }
-
-static DEVICE_ATTR(manufactory_id, 0644, mdss_manufactory_id_show, NULL);
 #endif
 static int mdss_fb_register(struct msm_fb_data_type *mfd)
 {
