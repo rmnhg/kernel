@@ -183,6 +183,8 @@ int mdss_change_dcs_cmd(struct device_node *npIn,
 	struct device_node *all_nodes = NULL;
 	struct device_node *np = npIn;
 	char* panel_name = np->properties->value;
+	char cmd_name[30] = {0};
+	int cmd_name_size = sizeof(cmd_name)/sizeof(cmd_name[0]);
 
 	printk("[DISPLAY]%s: %s, id 0x%x\n", __func__, panel_name, id);
 
@@ -191,8 +193,9 @@ int mdss_change_dcs_cmd(struct device_node *npIn,
 		np = of_find_compatible_node(all_nodes, NULL, name);
 		npIn = np;
 
+		snprintf(cmd_name, cmd_name_size, "qcom,mdss-dsi-on-command-%x", id);
 		mdss_dsi_parse_dcs_cmds(np, &ctrl->on_cmds,
-			"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+			cmd_name, "qcom,mdss-dsi-on-command-state");
 
 		mdss_dsi_parse_dcs_cmds(np, &ctrl->off_cmds,
 			"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
@@ -1387,10 +1390,13 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_dsi_parse_reset_seq(np, pinfo->rst_seq, &(pinfo->rst_seq_len),
 		"qcom,mdss-dsi-reset-sequence");
 	mdss_panel_parse_te_params(np, pinfo);
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
+		"qcom,mdss-dsi-on-command-63", "qcom,mdss-dsi-on-command-state");
+#else
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
 		"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
-
+#endif
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
 
