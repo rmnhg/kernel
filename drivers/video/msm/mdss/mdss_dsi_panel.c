@@ -46,11 +46,6 @@ static void mdss_manufacture_cb(int data)
 	return;
 }
 
-unsigned char mdss_manufacture_id_read(void)
-{
-	return gPanelModel;
-}
-
 static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
 #endif
