@@ -40,7 +40,9 @@ DEFINE_LED_TRIGGER(bl_led_trigger);
 struct device_node *gMIPIDSInode;
 static unsigned char gPanelModel = 0;
 static unsigned char gFirstChange = 0;
-
+static int DisplayGpioReady=0;
+static int DisplayGpioInit=0;
+static bool display_on_in_boot = false;
 static void mdss_manufacture_cb(int data)
 {
 	return;
@@ -264,6 +266,22 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			rc);
 		goto rst_gpio_err;
 	}
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	rc = gpio_request(ctrl_pdata->disp_p5_gpio, "disp_p5");
+	if (rc) {
+		pr_err("request p5 gpio failed, rc=%d\n",
+			   rc);
+		goto p5_gpio_err;
+	}
+
+	rc = gpio_request(ctrl_pdata->disp_n5_gpio, "disp_n5");
+	if (rc) {
+		pr_err("request n5 gpio failed, rc=%d\n",
+			   rc);
+		goto n5_gpio_err;
+	}
+	DisplayGpioInit = 1;
+#else
 	if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 		rc = gpio_request(ctrl_pdata->mode_gpio, "panel_mode");
 		if (rc) {
@@ -272,9 +290,16 @@ static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 			goto mode_gpio_err;
 		}
 	}
+#endif
 	return rc;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+n5_gpio_err:
+	gpio_free(ctrl_pdata->disp_n5_gpio);
+p5_gpio_err:
+	gpio_free(ctrl_pdata->disp_p5_gpio);
+#else
 mode_gpio_err:
+#endif
 	gpio_free(ctrl_pdata->rst_gpio);
 rst_gpio_err:
 	if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
@@ -312,6 +337,14 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	if (enable) {
+#ifdef CONFIG_MACH_SONY_SEAGULL
+		if((!DisplayGpioReady)&&(display_on_in_boot))
+		{
+			DisplayGpioReady=1;
+			printk("[DISPLAY]%s: Gpio have been init before\n", __func__ );
+			return rc;
+		}
+#endif
 		rc = mdss_dsi_request_gpios(ctrl_pdata);
 		if (rc) {
 			pr_err("gpio request failed\n");
@@ -320,7 +353,31 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 		if (!pinfo->panel_power_on) {
 			if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 				gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
+#ifdef CONFIG_MACH_SONY_SEAGULL
+			gpio_set_value((ctrl_pdata->disp_p5_gpio),0);
+			gpio_set_value((ctrl_pdata->disp_n5_gpio),0);
+            
+			msleep(1);
+			if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
+				gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
 
+			if (gpio_is_valid(ctrl_pdata->disp_p5_gpio))
+				gpio_set_value((ctrl_pdata->disp_p5_gpio) , 1);
+
+			msleep(1);
+			if (gpio_is_valid(ctrl_pdata->disp_n5_gpio))
+				gpio_set_value((ctrl_pdata->disp_n5_gpio) , 1);
+
+			msleep(50);
+			for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
+				gpio_set_value((ctrl_pdata->rst_gpio),
+					pdata->panel_info.rst_seq[i]);
+				if (pdata->panel_info.rst_seq[++i])
+					msleep(pinfo->rst_seq[i]);
+
+			}
+		}
+#else
 			for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
 				gpio_set_value((ctrl_pdata->rst_gpio),
 					pdata->panel_info.rst_seq[i]);
@@ -328,13 +385,13 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 					usleep(pinfo->rst_seq[i] * 1000);
 			}
 		}
-
 		if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 			if (pinfo->mode_gpio_state == MODE_GPIO_HIGH)
 				gpio_set_value((ctrl_pdata->mode_gpio), 1);
 			else if (pinfo->mode_gpio_state == MODE_GPIO_LOW)
 				gpio_set_value((ctrl_pdata->mode_gpio), 0);
 		}
+#endif
 		if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT) {
 			pr_debug("%s: Panel Not properly turned OFF\n",
 						__func__);
@@ -342,14 +399,52 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
 	} else {
+			if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
+				gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
+				gpio_free(ctrl_pdata->disp_en_gpio);
+			}
+#ifdef CONFIG_MACH_SONY_SEAGULL
+			if((DisplayGpioReady==1)&&(display_on_in_boot))
+			{
+				rc = mdss_dsi_request_gpios(ctrl_pdata);
+				DisplayGpioReady=2;
+				printk("[DISPLAY]%s: Request gpio for release fist deinit\n", __func__ );
+			}
+				if(DisplayGpioInit)
+				{
+				if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
+					gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
+					gpio_free(ctrl_pdata->disp_en_gpio);
+				}
+
+				if (gpio_is_valid(ctrl_pdata->disp_n5_gpio))
+				{
+					gpio_set_value((ctrl_pdata->disp_n5_gpio) , 0);
+				}
+				
+                msleep(10);
+				if (gpio_is_valid(ctrl_pdata->disp_p5_gpio))
+				{
+					gpio_set_value((ctrl_pdata->disp_p5_gpio) , 0);
+					gpio_free(ctrl_pdata->disp_p5_gpio);
+				}
+				
+				msleep(10);
+					gpio_set_value((ctrl_pdata->rst_gpio), 0);
+					gpio_free(ctrl_pdata->rst_gpio);
+				}
+			DisplayGpioInit = 0;	
+#else
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
 			gpio_free(ctrl_pdata->disp_en_gpio);
 		}
 		gpio_set_value((ctrl_pdata->rst_gpio), 0);
 		gpio_free(ctrl_pdata->rst_gpio);
+
 		if (gpio_is_valid(ctrl_pdata->mode_gpio))
 			gpio_free(ctrl_pdata->mode_gpio);
+#endif
 	}
 	return rc;
 }
@@ -1399,6 +1494,9 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	if (!cmd_cfg_cont_splash)
 		pinfo->cont_splash_enabled = false;
+#ifdef CONFIG_MACH_SONY_SEAGULL 
+	pinfo->cont_splash_enabled = display_on_in_boot;
+#endif
 	pr_info("%s: Continuous splash %s", __func__,
 		pinfo->cont_splash_enabled ? "enabled" : "disabled");
 
@@ -1412,3 +1510,29 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	return 0;
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static int __init display_on_in_boot_setup(char *str)
+{
+	if (!str)
+		return 0;
+	if (!strncmp(str, "on", 2))
+		display_on_in_boot = true;
+
+	printk("[DISPLAY]%s: --display_on_in_boot=%d\n", __func__,display_on_in_boot);
+	return 0;
+}
+__setup("display_status=", display_on_in_boot_setup);
+
+static int __init continous_splash_setup(char *str)
+{
+	if (!str)
+		return 0;
+	if (!strncmp(str, "on", 2))
+		display_on_in_boot = true;
+
+	printk("[DISPLAY]%s: --display_on_in_boot=%d\n", __func__,display_on_in_boot);
+	return 0;
+}
+__setup("display_status=", continous_splash_setup);
+
+#endif
