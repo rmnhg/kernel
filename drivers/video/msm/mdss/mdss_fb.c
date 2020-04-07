@@ -54,6 +54,9 @@
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
+#ifdef CONFIG_MACH_SONY_SEAGULL
+#include "mdss_dsi.h"
+#endif 
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3

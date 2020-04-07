@@ -25,10 +25,30 @@
 #include "mdss_dsi.h"
 
 #define DT_CMD_HDR 6
-
 #define MIN_REFRESH_RATE 30
-
 DEFINE_LED_TRIGGER(bl_led_trigger);
+
+#ifdef CONFIG_MACH_SONY_SEAGULL
+
+#define JDI_NON_PANEL_ID  0x00
+#define JDI_PANEL_ID      0x61
+#define TRULY_PANEL_ID    0x63
+#define TRULY_OTP_PANEL_ID    0x64
+#define INNOLUX_PANEL_ID    0x65
+#define INNOLUX_OTP_PANEL_ID    0x66
+
+struct device_node *gMIPIDSInode;
+static unsigned char gPanelModel = 0;
+static unsigned char gFirstChange = 0;
+
+static void mdss_manufacture_cb(int data)
+{
+	return;
+}
+
+static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
+		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
+#endif
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -96,35 +116,91 @@ static void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 		pr_err("%s: pwm_enable() failed err=%d\n", __func__, ret);
 	ctrl->pwm_enabled = 1;
 }
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static char dcs_cmd[2] = {0xDA, 0x00};
+#else
 static char dcs_cmd[2] = {0x54, 0x00}; /* DTYPE_DCS_READ */
+#endif
 static struct dsi_cmd_desc dcs_read_cmd = {
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	.dchdr = {
+		DTYPE_DCS_READ, 1, 0, 1, 20, sizeof(dcs_cmd),
+	},
+	.payload = dcs_cmd,
+#else
 	{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(dcs_cmd)},
 	dcs_cmd
+#endif
 };
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+unsigned char mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl)
+#else
 u32 mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl, char cmd0,
 		char cmd1, void (*fxn)(int), char *rbuf, int len)
+#endif
 {
 	struct dcs_cmd_req cmdreq;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	char rx_buffer=0xFF;
+#else
 	dcs_cmd[0] = cmd0;
 	dcs_cmd[1] = cmd1;
+#endif
 	memset(&cmdreq, 0, sizeof(cmdreq));
 	cmdreq.cmds = &dcs_read_cmd;
 	cmdreq.cmds_cnt = 1;
 	cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+#ifdef CONFIG_MACH_SONY_SEAGULL 
+	cmdreq.rlen = 1;
+	cmdreq.cb = mdss_manufacture_cb;
+	cmdreq.rbuf = &rx_buffer;
+	memcpy(&rx_buffer,cmdreq.rbuf,sizeof(char));
+	gPanelModel = rx_buffer;
+#else
 	cmdreq.rlen = len;
 	cmdreq.rbuf = rbuf;
 	cmdreq.cb = fxn; /* call back */
+#endif
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 	/*
 	 * blocked here, until call back called
 	 */
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	return gPanelModel;
+#else
 	return 0;
+#endif
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+int mdss_change_dcs_cmd(struct device_node *npIn,
+		struct mdss_dsi_ctrl_pdata *ctrl, const char* name, const int id)
+{
+	struct device_node *all_nodes = NULL;
+	struct device_node *np = npIn;
+	char* panel_name = np->properties->value;
 
+	printk("[DISPLAY]%s: %s, id 0x%x\n", __func__, panel_name, id);
+
+	if (strncmp(panel_name, name, strnlen(name, 128)) || !gFirstChange) {
+		all_nodes = of_find_all_nodes(NULL);
+		np = of_find_compatible_node(all_nodes, NULL, name);
+		npIn = np;
+
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->on_cmds,
+			"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
+
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->off_cmds,
+			"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
+
+		gFirstChange = 1;
+		panel_name = np->properties->value;
+
+		printk("[DISPLAY]%s: change to %s\n", __func__, panel_name);
+	}
+
+    return 0;
+}
+#endif
 static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct dsi_panel_cmds *pcmds)
 {
@@ -425,13 +501,43 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
-
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	if (ctrl) {
+		mdss_dsi_panel_cmd_read(ctrl);
+		switch (gPanelModel) {
+			case JDI_NON_PANEL_ID:
+			case JDI_PANEL_ID:
+				mdss_change_dcs_cmd(gMIPIDSInode, ctrl,
+						"qcom,mdss-dsi-panel-jdi", gPanelModel);
+				break;
+			case TRULY_PANEL_ID:
+			case TRULY_OTP_PANEL_ID:
+				mdss_change_dcs_cmd(gMIPIDSInode, ctrl,
+						"qcom,mdss-dsi-panel-truly", gPanelModel);
+				break;
+			case INNOLUX_PANEL_ID:
+			case INNOLUX_OTP_PANEL_ID:
+				mdss_change_dcs_cmd(gMIPIDSInode, ctrl,
+						"qcom,mdss-dsi-panel-innolux", gPanelModel);
+				break;
+			default:
+				printk(KERN_ERR "[DISPLAY] illegal PID <0x%x>\n", gPanelModel);
+				break;
+		}
+#endif
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
-
+#ifdef CONFIG_MACH_SONY_SEAGULL    
+	} else {
+		printk(KERN_WARNING "%s: ctrl=%p gPanelModel=%d\n",
+			__func__, ctrl, gPanelModel);
+	}
+	printk("[DISPLAY]%s: -\n", __func__);
+#else
 	pr_debug("%s:-\n", __func__);
+#endif
 	return 0;
 }
 
@@ -1282,6 +1388,10 @@ int mdss_dsi_panel_init(struct device_node *node,
 		pr_info("%s: Panel Name = %s\n", __func__, panel_name);
 
 	rc = mdss_panel_parse_dt(node, ctrl_pdata);
+
+#ifdef CONFIG_MACH_SONY_SEAGULL
+	gMIPIDSInode = node;
+#endif 
 	if (rc) {
 		pr_err("%s:%d panel dt parse failed\n", __func__, __LINE__);
 		return rc;
