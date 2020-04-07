@@ -1516,3 +1516,29 @@ int mdss_dsi_panel_init(struct device_node *node,
 
 	return 0;
 }
+#ifdef CONFIG_MACH_SONY_SEAGULL
+static int __init display_on_in_boot_setup(char *str)
+{
+	if (!str)
+		return 0;
+	if (!strncmp(str, "on", 2))
+		display_on_in_boot = true;
+
+	printk("[DISPLAY]%s: --display_on_in_boot=%d\n", __func__,display_on_in_boot);
+	return 0;
+}
+__setup("display_status=", display_on_in_boot_setup);
+
+static int __init continous_splash_setup(char *str)
+{
+	if (!str)
+		return 0;
+	if (!strncmp(str, "on", 2))
+		display_on_in_boot = true;
+
+	printk("[DISPLAY]%s: --display_on_in_boot=%d\n", __func__,display_on_in_boot);
+	return 0;
+}
+__setup("display_status=", continous_splash_setup);
+
+#endif
