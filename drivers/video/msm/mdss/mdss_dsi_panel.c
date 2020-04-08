@@ -43,6 +43,7 @@ static unsigned char gFirstChange = 0;
 static int DisplayGpioReady=0;
 static int DisplayGpioInit=0;
 static bool display_on_in_boot = false;
+
 static void mdss_manufacture_cb(int data)
 {
 	return;
@@ -50,6 +51,31 @@ static void mdss_manufacture_cb(int data)
 
 static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
+
+static char manufacture_idDA[2] = {0xDA, 0x00};
+static struct dsi_cmd_desc manufacture_id_cmd = {
+	.dchdr = {
+		DTYPE_DCS_READ, 1, 0, 1, 20, sizeof(manufacture_idDA),
+	},
+	.payload = manufacture_idDA,
+};
+
+unsigned char mdss_manufacture_id(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	struct dcs_cmd_req cmdreq;
+	char rx_buffer=0xFF;
+	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = &manufacture_id_cmd;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+	cmdreq.rlen = 1;
+	cmdreq.cb = mdss_manufacture_cb;
+	cmdreq.rbuf = &rx_buffer;
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+	memcpy(&rx_buffer,cmdreq.rbuf,sizeof(char));
+	gPanelModel = rx_buffer;
+	return gPanelModel;
+}
 #endif
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
@@ -118,60 +144,29 @@ static void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 		pr_err("%s: pwm_enable() failed err=%d\n", __func__, ret);
 	ctrl->pwm_enabled = 1;
 }
-#ifdef CONFIG_MACH_SONY_SEAGULL
-static char dcs_cmd[2] = {0xDA, 0x00};
-#else
 static char dcs_cmd[2] = {0x54, 0x00}; /* DTYPE_DCS_READ */
-#endif
 static struct dsi_cmd_desc dcs_read_cmd = {
-#ifdef CONFIG_MACH_SONY_SEAGULL
-	.dchdr = {
-		DTYPE_DCS_READ, 1, 0, 1, 20, sizeof(dcs_cmd),
-	},
-	.payload = dcs_cmd,
-#else
 	{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(dcs_cmd)},
 	dcs_cmd
-#endif
 };
-#ifdef CONFIG_MACH_SONY_SEAGULL
-unsigned char mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl)
-#else
 u32 mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl, char cmd0,
 		char cmd1, void (*fxn)(int), char *rbuf, int len)
-#endif
 {
 	struct dcs_cmd_req cmdreq;
-#ifdef CONFIG_MACH_SONY_SEAGULL
-	char rx_buffer=0xFF;
-#else
 	dcs_cmd[0] = cmd0;
 	dcs_cmd[1] = cmd1;
-#endif
 	memset(&cmdreq, 0, sizeof(cmdreq));
 	cmdreq.cmds = &dcs_read_cmd;
 	cmdreq.cmds_cnt = 1;
 	cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
-#ifdef CONFIG_MACH_SONY_SEAGULL 
-	cmdreq.rlen = 1;
-	cmdreq.cb = mdss_manufacture_cb;
-	cmdreq.rbuf = &rx_buffer;
-	memcpy(&rx_buffer,cmdreq.rbuf,sizeof(char));
-	gPanelModel = rx_buffer;
-#else
 	cmdreq.rlen = len;
 	cmdreq.rbuf = rbuf;
 	cmdreq.cb = fxn; /* call back */
-#endif
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 	/*
 	 * blocked here, until call back called
 	 */
-#ifdef CONFIG_MACH_SONY_SEAGULL
-	return gPanelModel;
-#else
 	return 0;
-#endif
 }
 #ifdef CONFIG_MACH_SONY_SEAGULL
 int mdss_change_dcs_cmd(struct device_node *npIn,
@@ -601,7 +596,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	mipi  = &pdata->panel_info.mipi;
 #ifdef CONFIG_MACH_SONY_SEAGULL
 	if (ctrl) {
-		mdss_dsi_panel_cmd_read(ctrl);
+		mdss_manufacture_id(ctrl);
 		switch (gPanelModel) {
 			case JDI_NON_PANEL_ID:
 			case JDI_PANEL_ID:
