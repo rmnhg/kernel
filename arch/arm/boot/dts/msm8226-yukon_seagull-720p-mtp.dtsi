@@ -256,6 +256,12 @@
 		qcom,cdc-rev-en-gpios = <&msmgpio 108 0>;
 		qcom,headset-jack-type-NC;
 	};
+
+	/* LLCON memory reserve (2 MiB) */
+	qcom,msm-contig-mem {
+		compatible = "qcom,msm-contig-mem";
+		qcom,memory-fixed = <0x3e800000 0x200000>;
+	};
 };
 
 &rpm_bus {
