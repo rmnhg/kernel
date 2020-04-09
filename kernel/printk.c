@@ -298,6 +298,10 @@ static void log_store(int facility, int level,
 {
 	struct log *msg;
 	u32 size, pad_len;
+#ifdef CONFIG_LLCON
+	char llcon_buf[LOG_LINE_MAX + 32];
+	int buf_idx;
+#endif
 
 	/* number of '\0' padding bytes to next message */
 	size = sizeof(struct log) + text_len + dict_len;
@@ -343,8 +347,8 @@ static void log_store(int facility, int level,
 
 #ifdef CONFIG_LLCON
 	if (llcon_enabled || llcon_dumplog) {
-		static char llcon_buf[LOG_LINE_MAX + PREFIX_MAX + 32] = log_text(msg);
-		for (int buf_idx = 0; llconbuf[buf_idx] != '\0' && llconbuf[buf_idx] != NULL; buf_idx++) {
+		strcpy(llcon_buf, (const char *) log_text(msg));
+		for (buf_idx = 0; llcon_buf[buf_idx] != '\0' && llcon_buf[buf_idx] != NULL; buf_idx++) {
 			llcon_emit(log_buf[buf_idx]);
 		}
 	}
