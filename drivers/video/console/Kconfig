@@ -129,6 +129,11 @@ config STI_CONSOLE
           machines.  Say Y here to build support for it into your kernel.
           The alternative is to use your primary serial port as a console.
 
+config LLCON
+	bool "Low level console"
+	default n
+	select FONTS
+
 config FONTS
 	bool "Select compiled-in fonts"
 	depends on FRAMEBUFFER_CONSOLE || STI_CONSOLE
@@ -225,4 +230,3 @@ config FONT_10x18
 	  If other fonts are too big or too small for you, say Y, otherwise say N.
 
 endmenu
-
