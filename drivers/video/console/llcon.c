@@ -119,21 +119,30 @@ int llcon_dmp_reserve_ram(void * addr, size_t size)
 	return 0;
 }
 
+static void llcon_syslog_dumper(struct kmsg_dumper *dumper,
+	    enum kmsg_dump_reason reason,
+	    const char *s1, unsigned long l1,
+	    const char *s2, unsigned long l2)
+{
+	int i;
+	if (reason == KMSG_DUMP_PANIC) {
+		for (i = 0; i < l1; i++)
+			llcon_dmp_putc(s1[i]);
+		for (i = 0; i < l2; i++)
+			llcon_dmp_putc(s2[i]);
+	}
+}
+
+static struct kmsg_dumper llcon_dumper = {
+	.dump = llcon_syslog_dumper,
+};
+
 int llcon_dmp_syslog(void)
 {
-	struct kmsg_dumper dumper = { .active = 1 };
-	static char buf[1024];
-	size_t i, len;
-	int total = 0;
-
-	kmsg_dump_rewind_nolock(&dumper);
-	while (kmsg_dump_get_line_nolock(&dumper, true, buf, sizeof(buf), &len)) {
-		for (i=0; i < len; i++) {
-			llcon_dmp_putc(buf[i]);
-		}
-		total += (int)len;
-	}
-	return total;
+	kmsg_dump_register(&llcon_dumper);
+	kmsg_dump(KMSG_DUMP_PANIC);
+	kmsg_dump_unregister(&llcon_dumper);
+	return 0;
 }
 
 int llcon_dmp_init(void)
