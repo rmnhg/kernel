@@ -41,7 +41,6 @@ static struct llcon_desc llcon;
 
 static int __init llcondmp_setup(char *str)
 {
-	llcon.mode = LLCON_MODE_DISABLED;
 	int ints[4];
 	void * addr;
 	size_t size;
