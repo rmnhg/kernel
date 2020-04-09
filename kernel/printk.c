@@ -348,7 +348,7 @@ static void log_store(int facility, int level,
 #ifdef CONFIG_LLCON
 	if (llcon_enabled || llcon_dumplog) {
 		strcpy(llcon_buf, (const char *) log_text(msg));
-		for (buf_idx = 0; llcon_buf[buf_idx] != '\0' && llcon_buf[buf_idx] != NULL; buf_idx++) {
+		for (buf_idx = 0; llcon_buf[buf_idx] != '\0'; buf_idx++) {
 			llcon_emit(log_buf[buf_idx]);
 		}
 	}
