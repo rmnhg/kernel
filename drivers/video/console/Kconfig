@@ -132,7 +132,6 @@ config STI_CONSOLE
 config LLCON
 	bool "Low level console"
 	default n
-	select FONTS
 
 config FONTS
 	bool "Select compiled-in fonts"
