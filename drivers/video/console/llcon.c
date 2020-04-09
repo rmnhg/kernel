@@ -7,7 +7,7 @@
  * This module support only 24-bit color format.
  *
  * @author	remittor <remittor@gmail.com>
- * @date	2016-05-11 
+ * @date	2016-05-11
  */
 
 #include <linux/slab.h>
@@ -21,6 +21,7 @@
 #include <linux/memblock.h>
 #include <linux/io.h>
 #include <linux/vmalloc.h>
+#include <linux/kmsg_dump.h>
 
 #include <video/llcon.h>
 
@@ -28,6 +29,10 @@
 #define LLCON_PXL_SIZE      3
 
 volatile int llcon_enabled = 0;
+volatile int llcon_dumplog = 0;
+
+void llcon_dmp_putc(char c);
+int llcon_dmp_init(void);
 
 struct mutex llcon_lock;
 
@@ -35,7 +40,7 @@ static struct llcon_desc llcon;
 
 /*
 * androidboot.llcon=<mode>,<delay>,<textwrap>,<fb_addr>,<fb_bpp>,<fb_height>,
-*                   <fb_width>,<fb_pitch>,<font_size>,<font_color>
+*                   <fb_width>,<fb_stride>,<font_size>,<font_color>
 */
 
 static int __init llcon_setup(char *str)
@@ -78,8 +83,14 @@ static int __init llcon_setup(char *str)
 	if (mode <= LLCON_MODE_DISABLED)
 		return 1;
 
-	llcon.display.bpp = 24;
-	llcon.display.pixel_size = 3;
+	llcon.display.bpp = LLCON_BPP;
+	llcon.display.pixel_size = LLCON_PXL_SIZE;
+
+	if (llcon.display.stride < llcon.display.width * LLCON_PXL_SIZE)
+		llcon.display.stride *= LLCON_PXL_SIZE;
+
+	if (llcon.display.stride < llcon.display.width * LLCON_PXL_SIZE)
+		return 1;
 
 	switch (font_size) {
 #ifdef CONFIG_FONT_SUN12x22
@@ -108,9 +119,32 @@ static int __init llcon_setup(char *str)
 	llcon_set_font_fg_color(font_color ? font_color : LLCON_WHITE);
 
 	llcon.mode = mode;
-	return 1; 
+	return 1;
 }
 __setup("androidboot.llcon=", llcon_setup);
+
+
+static int __init llcondmp_setup(char *str)
+{
+	int ints[4];
+	void * addr;
+	size_t size;
+
+	str = get_options(str, 3, ints);
+	if (!ints[0])
+		return 1;
+
+	switch (ints[0]) {
+	case 2:
+		size = (size_t)ints[2];
+	case 1:
+		addr = (void *)ints[1];
+	}
+	if (size && addr)
+		llcon_dmp_reserve_ram(addr, size);
+	return 1;
+}
+__setup("llcondmp=", llcondmp_setup);
 
 
 static noinline void llcon_drawglyph8(uint8_t * pixels, uint32_t paint,
@@ -188,7 +222,7 @@ void llcon_clear(void)
 	size_t size;
 	if (!llcon_enabled)
 		return;
-	size = llcon.display.stride * llcon.display.height * LLCON_PXL_SIZE;
+	size = llcon.display.stride * llcon.display.height;
 	memset(llcon.display.fbaddr, 0, size);
 }
 
@@ -196,9 +230,9 @@ static inline uint8_t * get_char_pos_ptr(size_t x, size_t y)
 {
 	size_t offset;
 	offset = y * (size_t)llcon.font.height * llcon.display.stride;
-	offset += x * (size_t)llcon.font.width;
-	return llcon.display.fbaddr + offset * LLCON_PXL_SIZE;
-} 
+	offset += x * (size_t)llcon.font.width * LLCON_PXL_SIZE;
+	return llcon.display.fbaddr + offset;
+}
 
 static inline uint8_t * get_cursor_pos_ptr(void)
 {
@@ -273,33 +307,30 @@ newline:
 	memset(llcon.log.buf + llcon.log.pos, 0x20, llcon.res.x);
 }
 
+void inline __llcon_emit(char c)
+{
+	if (llcon_dumplog) {
+		llcon_dmp_putc(c);
+	}
+	if (llcon.mode == LLCON_MODE_SYNC) {
+		llcon_putc(c);
+	} else
+	if (llcon.mode == LLCON_MODE_ASYNC) {
+		llcon_putc_to_buf(c);
+	}
+}
+
 void llcon_emit(char c)
 {
-	switch (llcon.mode) {
-	case LLCON_MODE_SYNC:
-		llcon_putc(c);
-		break;
-	case LLCON_MODE_ASYNC:
-		llcon_putc_to_buf(c);
-		break;
-	}
+	__llcon_emit(c);
 }
 
 void llcon_emit_line(char * line, int size)
 {
 	int i;
 	if (line && size > 0) {
-		switch (llcon.mode) {
-		case LLCON_MODE_SYNC:
-			for (i = 0; i < size; i++) {
-				llcon_putc(line[i]);
-			}
-			break;
-		case LLCON_MODE_ASYNC:
-			for (i = 0; i < size; i++) {
-				llcon_putc_to_buf(line[i]);
-			}
-			break;
+		for (i = 0; i < size; i++) {
+			__llcon_emit(line[i]);
 		}
 	}
 }
@@ -339,8 +370,8 @@ int llcon_set_font_type(const struct font_desc * font)
 	if (llcon.font.width > 16)
 		return -2;
 
-	llcon.glyph_stride = llcon.display.stride - (size_t)llcon.font.width;
-	llcon.glyph_stride *= LLCON_PXL_SIZE;
+	llcon.glyph_stride = llcon.display.stride;
+	llcon.glyph_stride -= (size_t)llcon.font.width * LLCON_PXL_SIZE;
 	return 0;
 }
 
@@ -397,7 +428,7 @@ int llcon_thread(void * data)
 	llcon_clear();
 
 	fb_addr = get_char_pos_ptr(0, 0);
-	scanline = llcon.display.stride * LLCON_PXL_SIZE * gh;
+	scanline = llcon.display.stride * gh;
 	dx = gw * LLCON_PXL_SIZE;
 	dy = scanline - (dx * resx);
 
@@ -453,6 +484,8 @@ int llcon_init(void)
 	phys_addr_t base;
 	phys_addr_t addr;
 
+	llcon_dmp_init();
+
 	if (llcon.mode <= LLCON_MODE_DISABLED || llcon.mode >= LLCON_MODE_MAX) {
 		pr_err("LLCON: can't init (mode = %d) \n", llcon.mode);
 		return -1;
@@ -469,7 +502,7 @@ int llcon_init(void)
 	}
 
 	prot = pgprot_noncached(PAGE_KERNEL);
-	fbsize = llcon.display.height * llcon.display.stride * LLCON_PXL_SIZE;
+	fbsize = llcon.display.height * llcon.display.stride;
 	pc = (fbsize / PAGE_SIZE) + 1;
 	pages = kmalloc(sizeof(struct page *) * pc, GFP_KERNEL);
 	if (!pages)
@@ -510,7 +543,7 @@ int llcon_init(void)
 		}
 	}
 
-	pr_info("LLCON: mode: %d, addr: %p (%p), size: %ux%u, pitch: %u,"
+	pr_info("LLCON: mode: %d, addr: %p (%p), size: %ux%u, stride: %u,"
 		" font: %dx%d [%x], delay: %u \n",
 		llcon.mode, (void *)base, llcon.display.fbaddr,
 		llcon.display.width, llcon.display.height, llcon.display.stride,
@@ -557,3 +590,201 @@ void llcon_uninit(void)
 		}
 	}
 }
+
+
+int llcon_dmp_reserve_ram(void * addr, size_t size)
+{
+	int rc;
+
+	if (llcon.dmp.phys_addr && llcon.dmp.vmem_size)
+		return 0;
+	rc = memblock_reserve((phys_addr_t)addr, (phys_addr_t)size);
+	if (rc) {
+		llcon.dmp.phys_addr = 0;
+		llcon.dmp.vmem_size = 0;
+		llcon.dmp.virt_addr = 0;
+		pr_err("Failed to reserve memory at 0x%lx (size = 0x%lx) \n",
+			(long)addr, (long)size);
+		return -ENOMEM;
+	}
+	llcon.dmp.phys_addr = addr;
+	llcon.dmp.vmem_size = size;
+	llcon.dmp.virt_addr = 0;
+	return 0;
+}
+
+int llcon_dmp_syslog(void)
+{
+	struct kmsg_dumper dumper = { .active = 1 };
+	static char buf[1024];
+	size_t i, len;
+	int total = 0;
+
+	kmsg_dump_rewind_nolock(&dumper);
+	while (kmsg_dump_get_line_nolock(&dumper, true, buf, sizeof(buf), &len)) {
+		for (i=0; i < len; i++) {
+			llcon_dmp_putc(buf[i]);
+		}
+		total += (int)len;
+	}
+	return total;
+}
+
+int llcon_dmp_init(void)
+{
+	size_t pcnt;
+	size_t x;
+	pgprot_t prot;
+	struct page **pages;
+	phys_addr_t addr;
+	void * virt_addr = NULL;
+	struct llcon_dmp_header * hdr;
+	uint32_t cur_zone = 0;
+
+	if (llcon_dumplog || llcon.dmp.virt_addr)
+		return 0;
+		
+	if (!llcon.dmp.phys_addr || !llcon.dmp.vmem_size)
+		return -ENOMEM;
+
+	pcnt = llcon.dmp.vmem_size / PAGE_SIZE;
+	prot = pgprot_noncached(PAGE_KERNEL);
+	pages = kmalloc(sizeof(struct page *) * pcnt, GFP_KERNEL);
+	if (!pages) return -100;
+	for (x = 0; x < pcnt; x++) {
+		addr = (phys_addr_t)llcon.dmp.phys_addr + x * PAGE_SIZE;
+		pages[x] = pfn_to_page(addr >> PAGE_SHIFT);
+	} 
+	virt_addr = vmap(pages, pcnt, VM_MAP, prot);
+	kfree(pages);
+	if (!virt_addr) return -200;
+
+	hdr = (struct llcon_dmp_header *)virt_addr;
+	if (hdr->magic != LLCON_DMP_MAGIC) {
+		hdr->magic = LLCON_DMP_MAGIC;
+		hdr->cur_zone = 0;
+		hdr->zone_cnt[0] = 1;
+		hdr->zone_cnt[1] = 0;
+	} else {
+		cur_zone = hdr->cur_zone & 1;
+		cur_zone = (cur_zone ? 0 : 1);
+		hdr->cur_zone = cur_zone;
+		hdr->zone_cnt[cur_zone]++;
+	}
+	llcon.dmp.bufsize = llcon.dmp.vmem_size / 2 - sizeof(struct llcon_dmp_header);
+	llcon.dmp.buf = (char *)virt_addr + sizeof(struct llcon_dmp_header);
+	if (cur_zone) 
+		llcon.dmp.buf += llcon.dmp.bufsize;
+
+	memset(llcon.dmp.buf, 0, llcon.dmp.bufsize);
+	llcon.dmp.pos = 0;
+	llcon.dmp.virt_addr = virt_addr;
+	llcon_dumplog = 1;
+	llcon_dmp_syslog();
+	return 0;
+}
+
+void llcon_dmp_putc(char c)
+{
+	if (!llcon_dumplog)
+		return;
+	if (llcon.dmp.pos >= llcon.dmp.bufsize)
+		llcon.dmp.pos = 0;
+	llcon.dmp.buf[llcon.dmp.pos++] = c;
+}
+
+
+#ifdef CONFIG_LLCON_DBG
+
+static void * llcon_dbg_fb_vmem = (void *) CONFIG_LLCON_DBG_FB_VMEM;
+
+void llcon_dbg_set_fb_vmem(void * addr)
+{
+	if (addr == (void *)1) {
+		addr = NULL;
+		if (llcon.display.dt_fbaddr) {
+			addr = (void *) __phys_to_virt(llcon.display.dt_fbaddr);
+		} else
+		if (llcon.display.bl_fbaddr) {
+			addr = (void *) __phys_to_virt(llcon.display.bl_fbaddr);
+		}
+	}
+	llcon_dbg_fb_vmem = addr;
+}
+
+int llcon_dbg_buf(uint32_t y, uint32_t x, const char * buf, int len)
+{
+	const struct font_desc * font = NULL;
+	uint8_t * fb_addr = (uint8_t *) llcon_dbg_fb_vmem;
+	uint8_t * pixels;
+	size_t stride;
+	size_t offset;
+	int i;
+
+	if (!fb_addr || len <= 0)
+		return 0;
+
+#ifdef CONFIG_FONT_SUN12x22
+	if (!font && CONFIG_LLCON_DBG_FONT_SIZE >= 12)
+		font = &font_sun_12x22;
+#endif
+#ifdef CONFIG_FONT_10x18
+	if (!font && CONFIG_LLCON_DBG_FONT_SIZE >= 10)
+		font = &font_10x18;
+#endif
+#ifdef CONFIG_FONT_8x16
+	if (!font && CONFIG_LLCON_DBG_FONT_SIZE >= 8)
+		font = &font_vga_8x16;
+#endif
+#ifdef CONFIG_FONT_6x11
+	if (!font && CONFIG_LLCON_DBG_FONT_SIZE >= 6)
+		font = &font_vga_6x11;
+#endif
+	if (!font)
+		return -1;
+
+	stride = CONFIG_LLCON_DBG_FB_STRIDE;
+	stride -= (size_t)font->width * LLCON_PXL_SIZE;
+
+	offset = (size_t)font->width * LLCON_PXL_SIZE;
+
+	pixels = fb_addr;
+	pixels += y * font->height * CONFIG_LLCON_DBG_FB_STRIDE;
+	pixels += x * font->width * LLCON_PXL_SIZE;
+
+	for (i=0; i < len; i++) {
+		llcon_drawglyph_x(pixels, 0xFFFFFF, font->width, font->height,
+			stride, (uint8_t *)font->data, buf[i]);
+		pixels += offset; 
+	}
+	return len;
+}
+
+int llcon_dbg_u16(uint32_t y, uint32_t x, uint16_t value)
+{
+	char tmp[24];
+	char txt[8];
+	int i, len;
+	char * p;
+
+	if (!llcon_dbg_fb_vmem)
+		return 0;
+	if (value >= 0 && value <= 9) {
+		tmp[0] = '0' + value;
+		len = 1;
+	} else {
+		len = num_to_str(tmp, sizeof(tmp), value);
+	}
+	p = tmp;
+	for (i=0; i < 5; i++) {
+		if ((5 - i) > len) {
+			txt[i] = '0';
+		} else {
+			txt[i] = *p++;
+		}
+	}
+	txt[5] = 0;	
+	return llcon_dbg_buf(y, x, txt, 5);
+}
+
+#endif
