@@ -16,6 +16,9 @@ font-objs-$(CONFIG_FONT_PEARL_8x8) += font_pearl_8x8.o
 font-objs-$(CONFIG_FONT_ACORN_8x8) += font_acorn_8x8.o
 font-objs-$(CONFIG_FONT_MINI_4x6)  += font_mini_4x6.o
 
+obj-$(CONFIG_LLCON)                += $(font-objs)
+obj-$(CONFIG_LLCON)                += llcon.o
+
 font-objs += $(font-objs-y)
 
 # Each configuration option enables a list of files.
