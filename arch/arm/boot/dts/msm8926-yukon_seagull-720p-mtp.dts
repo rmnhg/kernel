@@ -19,11 +19,6 @@
 /* LLCON memory reserve (2 MiB) */
 qcom,msm-contig-mem {
 	compatible = "qcom,msm-contig-mem";
-	qcom,memblock-remove = <0x3e800000 0x200000>;
-};
-
-qcom,msm-contig-mem {
-	compatible = "qcom,msm-contig-mem";
 	qcom,memory-fixed = <0x3e800000 0x200000>;
 };
 
