@@ -17,8 +17,8 @@
 /include/ "msm8226-yukon_seagull-camera-sensor.dtsi"
 
 /* LLCON memory reserve (2 MiB) */
-qcom,msm-contig-mem {
-	compatible = "qcom,msm-contig-mem";
+ram_console {
+	compatible = "qcom,ram-console";
 	qcom,memory-fixed = <0x3e800000 0x200000>;
 };
 
