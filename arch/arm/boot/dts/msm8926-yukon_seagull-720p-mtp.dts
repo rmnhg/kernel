@@ -16,6 +16,9 @@
 /include/ "msm8226-yukon_seagull-720p-mtp.dtsi"
 /include/ "msm8226-yukon_seagull-camera-sensor.dtsi"
 
+/* LLCON Memory reserve (2 MiB) */
+/memreserve/ 0x3E800000 0x200000;
+
 
 / {
 	model = "Qualcomm MSM 8926 MTP";
