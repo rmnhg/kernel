@@ -299,7 +299,7 @@ static void log_store(int facility, int level,
 	struct log *msg;
 	u32 size, pad_len;
 #ifdef CONFIG_LLCON
-	char llcon_buf[LOG_LINE_MAX];
+	char llcon_buf[1000];
 	int buf_idx;
 #endif
 
