@@ -145,7 +145,29 @@ static struct reserve_info msm8226_reserve_info __initdata = {
  		.platform_data = &ram_console_pdata,
  	}
  };
- #endif
+#endif
+
+#ifdef CONFIG_LLCON
+/* LLCON memory reserve (2 MiB) at 0x3E800000 (End - 1MiB - 2MiB) */
+#define LLCON_PERSISTENT_RAM_BASE 0x3E800000
+#define LLCON_PERSISTENT_RAM_SIZE (2 * SZ_1M)
+
+static struct persistent_ram_descriptor llcon_pr_desc = {
+};
+
+static struct persistent_ram llcon_pram = {
+	.start		= LLCON_PERSISTENT_RAM_START,
+	.size		= LLCON_PERSISTENT_RAM_SIZE,
+	.num_descs	= 1,
+	.descs		= &llcon_pr_desc
+};
+
+static void reserve_llcon_persistent_ram(void)
+{
+	persistent_ram_early_init(&llcon_pram);
+}
+#endif
+
 
 static void __init msm8226_early_memory(void)
 {
@@ -164,7 +186,10 @@ static void __init msm8226_reserve(void)
 {
 #ifdef CONFIG_ANDROID_PERSISTENT_RAM
  	reserve_persistent_ram();
- #endif
+#endif
+#ifdef CONFIG_LLCON
+	reserve_llcon_persistent_ram();
+#endif
 	reserve_info = &msm8226_reserve_info;
 	of_scan_flat_dt(dt_scan_for_memory_reserve, msm8226_reserve_table);
 	msm_reserve();
